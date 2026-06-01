@@ -1,4 +1,4 @@
-import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult } from "./types";
+import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult, SwapParams, SwapResult, SocialLoginResult, PasskeyTxAuthResult, FiatOnrampSession } from "./types";
 
 const DEFAULT_BASE_URL = "https://api.1claw.xyz";
 
@@ -67,8 +67,59 @@ export class OneclawWalletClient {
     return this.request<SendTransactionResult>(
       "POST",
       `/v1/treasury/wallets/${params.chain}/send`,
-      { to: params.to, value_wei: params.valueWei, data: params.data },
+      { to: params.to, value_wei: params.valueWei, data: params.data, gasless: params.gasless },
       { "X-Auth-Confirm": params.password }
+    );
+  }
+
+  async swap(params: SwapParams): Promise<SwapResult> {
+    return this.request<SwapResult>(
+      "POST",
+      `/v1/treasury/wallets/${params.chain}/swap`,
+      { sell_token: params.sellToken, buy_token: params.buyToken, sell_amount: params.sellAmount },
+      { "X-Auth-Confirm": params.password }
+    );
+  }
+
+  async socialLogin(provider: string, idToken: string, autoProvisionChains?: string[]): Promise<SocialLoginResult> {
+    return this.request<SocialLoginResult>(
+      "POST",
+      "/v1/auth/social-login",
+      { provider, id_token: idToken, auto_provision_chains: autoProvisionChains }
+    );
+  }
+
+  async beginPasskeyTxAuth(): Promise<{ challenge: string; rp_id: string; allow_credentials: unknown[] }> {
+    return this.request("POST", "/v1/auth/passkeys/tx-assert/begin", {});
+  }
+
+  async completePasskeyTxAuth(assertion: {
+    credential_id: string;
+    authenticator_data: string;
+    client_data_json: string;
+    signature: string;
+  }): Promise<PasskeyTxAuthResult> {
+    return this.request<PasskeyTxAuthResult>(
+      "POST",
+      "/v1/auth/passkeys/tx-assert/complete",
+      assertion
+    );
+  }
+
+  async sendWithPasskey(params: Omit<SendTransactionParams, "password"> & { passkeyToken: string }): Promise<SendTransactionResult> {
+    return this.request<SendTransactionResult>(
+      "POST",
+      `/v1/treasury/wallets/${params.chain}/send`,
+      { to: params.to, value_wei: params.valueWei, data: params.data, gasless: params.gasless },
+      { "X-Passkey-Token": params.passkeyToken }
+    );
+  }
+
+  async createOnrampSession(chain: string, asset?: string, amountUsd?: string): Promise<FiatOnrampSession> {
+    return this.request<FiatOnrampSession>(
+      "POST",
+      "/v1/fiat/onramp/session",
+      { chain, asset, amount_usd: amountUsd }
     );
   }
 }

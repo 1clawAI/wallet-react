@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { OneclawWalletClient } from "./client";
-import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult } from "./types";
+import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult, SwapParams, SwapResult } from "./types";
 
 interface WalletContextValue {
   wallets: WalletInfo[];
@@ -11,6 +11,7 @@ interface WalletContextValue {
   refreshBalance: (chain: string) => Promise<WalletBalance | null>;
   generateWallets: (chains?: string[]) => Promise<WalletInfo[]>;
   send: (params: SendTransactionParams) => Promise<SendTransactionResult>;
+  swap: (params: SwapParams) => Promise<SwapResult>;
 }
 
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -71,13 +72,20 @@ export function OneclawWalletProvider({ apiKey, baseUrl, children }: ProviderPro
     [client]
   );
 
+  const swap = useCallback(
+    async (params: SwapParams): Promise<SwapResult> => {
+      return client.swap(params);
+    },
+    [client]
+  );
+
   useEffect(() => {
     refreshWallets();
   }, [refreshWallets]);
 
   return (
     <WalletContext.Provider
-      value={{ wallets, balances, loading, error, refreshWallets, refreshBalance, generateWallets, send }}
+      value={{ wallets, balances, loading, error, refreshWallets, refreshBalance, generateWallets, send, swap }}
     >
       {children}
     </WalletContext.Provider>
