@@ -27,9 +27,9 @@ function App() {
 
 ## Components
 
-### `<OneclawEmbeddedWallet />` (v0.2.0)
+### `<OneclawEmbeddedWallet />` (v0.3.0)
 
-Full embedded wallet with social login, Send/Swap/Receive/Buy views:
+Full embedded wallet with social login, email OTP login, Send/Swap/Receive/Buy views:
 
 ```tsx
 import { OneclawEmbeddedWallet } from "@1claw/wallet-react";
@@ -46,7 +46,10 @@ function App() {
 }
 ```
 
-Social login uses `POST /v1/auth/social-login`. Passkey transaction auth uses `tx-assert` endpoints; sends can use `X-Passkey-Token` instead of password.
+**Authentication methods:**
+- **Social login** — Google/Apple via `POST /v1/auth/social-login`.
+- **Email OTP** — Passwordless login via `sendEmailOtp(email)` and `verifyEmailOtp(email, code)`. Uses `POST /v1/auth/email-otp/send` and `POST /v1/auth/email-otp/verify`.
+- **Passkey transaction auth** — `tx-assert` endpoints; sends can use `X-Passkey-Token` instead of password.
 
 ### `<OneclawTreasuryWidget />`
 
@@ -101,6 +104,8 @@ Returns:
 | `generateWallets(chains?)` | `(chains?: string[]) => Promise<WalletInfo[]>` | Generate new wallets |
 | `send(params)` | `(params: SendTransactionParams) => Promise<SendTransactionResult>` | Send a transaction |
 | `swap(params)` | `(params: SwapParams) => Promise<SwapResult>` | Swap tokens via DEX aggregator |
+| `sendEmailOtp(email)` | `(email: string) => Promise<{ status: string }>` | Send a one-time passcode for email login |
+| `verifyEmailOtp(email, code)` | `(email: string, code: string) => Promise<SocialLoginResult>` | Verify OTP and authenticate |
 
 ## Security
 

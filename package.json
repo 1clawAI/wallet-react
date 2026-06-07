@@ -1,6 +1,6 @@
 {
   "name": "@1claw/wallet-react",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Embeddable treasury wallet component for Platform API apps built on 1Claw",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

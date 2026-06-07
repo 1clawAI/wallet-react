@@ -89,8 +89,23 @@ export class OneclawWalletClient {
     );
   }
 
-  async beginPasskeyTxAuth(): Promise<{ challenge: string; rp_id: string; allow_credentials: unknown[] }> {
-    return this.request("POST", "/v1/auth/passkeys/tx-assert/begin", {});
+  async beginPasskeyTxAuth(
+    txDigest: string,
+  ): Promise<{ challenge: string; rp_id: string; allow_credentials: unknown[] }> {
+    return this.request("POST", "/v1/auth/passkeys/tx-assert/begin", {
+      tx_digest: txDigest,
+    });
+  }
+
+  /** SHA-256 hex digest for passkey tx-assert (chain|to|valueWei|data). */
+  async treasurySendTxDigest(
+    chain: string,
+    to: string,
+    valueWei: string,
+    data?: string,
+  ): Promise<string> {
+    const { treasurySendTxDigest } = await import("./treasury-send-digest");
+    return treasurySendTxDigest(chain, to, valueWei, data);
   }
 
   async completePasskeyTxAuth(assertion: {
@@ -121,5 +136,40 @@ export class OneclawWalletClient {
       "/v1/fiat/onramp/session",
       { chain, asset, amount_usd: amountUsd }
     );
+  }
+
+  async sendEmailOtp(email: string): Promise<{ status: string }> {
+    const resp = await fetch(`${this.baseUrl}/v1/auth/email-otp/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, platform_app_id: this.apiKey }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || `Request failed: ${resp.status}`);
+    }
+    return resp.json();
+  }
+
+  async verifyEmailOtp(email: string, code: string, autoProvisionChains?: string[]): Promise<SocialLoginResult> {
+    const resp = await fetch(`${this.baseUrl}/v1/auth/email-otp/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        code,
+        platform_app_id: this.apiKey,
+        auto_provision_chains: autoProvisionChains,
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || `Request failed: ${resp.status}`);
+    }
+    const data: SocialLoginResult = await resp.json();
+    if (data.token) {
+      this.token = data.token;
+    }
+    return data;
   }
 }
