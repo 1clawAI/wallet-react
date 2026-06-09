@@ -23,6 +23,13 @@ interface ProviderProps {
 }
 
 export function OneclawWalletProvider({ apiKey, baseUrl, children }: ProviderProps) {
+  // SEC-013: Warn if human/platform keys are used in client-side code
+  if (apiKey.startsWith("1ck_") || apiKey.startsWith("plt_")) {
+    console.error(
+      "[1claw/wallet-react] SECURITY: Do not embed human (1ck_) or platform (plt_) API keys in client-side code. Use a session token or embedded wallet flow instead.",
+    );
+  }
+
   const client = useMemo(() => new OneclawWalletClient(apiKey, baseUrl), [apiKey, baseUrl]);
   const [wallets, setWallets] = useState<WalletInfo[]>([]);
   const [balances, setBalances] = useState<Record<string, WalletBalance>>({});
