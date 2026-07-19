@@ -88,6 +88,7 @@ export interface OneclawEmbeddedWalletProps {
   socialProviders?: ("google" | "apple" | "discord")[];
   onLogin?: (user: EmbeddedWalletUser) => void;
   onLogout?: () => void;
+  onLinkRequired?: (authorizeUrl: string, appSlug: string) => void;
   onTransactionSent?: (result: SendTransactionResult) => void;
   onSwapCompleted?: (result: SwapResult) => void;
   onError?: (error: Error) => void;

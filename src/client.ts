@@ -82,11 +82,22 @@ export class OneclawWalletClient {
   }
 
   async socialLogin(provider: string, idToken: string, autoProvisionChains?: string[]): Promise<SocialLoginResult> {
-    return this.request<SocialLoginResult>(
-      "POST",
-      "/v1/auth/social-login",
-      { provider, id_token: idToken, auto_provision_chains: autoProvisionChains }
-    );
+    const resp = await fetch(`${this.baseUrl}/v1/auth/social-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, id_token: idToken, auto_provision_chains: autoProvisionChains }),
+    });
+    if (resp.status === 409) {
+      const data = await resp.json();
+      if (data.link_required?.authorize_url) {
+        throw new LinkRequiredError(data.link_required.authorize_url, data.link_required.app_slug);
+      }
+    }
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || `Request failed: ${resp.status}`);
+    }
+    return resp.json();
   }
 
   async beginPasskeyTxAuth(
@@ -162,6 +173,12 @@ export class OneclawWalletClient {
         auto_provision_chains: autoProvisionChains,
       }),
     });
+    if (resp.status === 409) {
+      const data = await resp.json();
+      if (data.link_required?.authorize_url) {
+        throw new LinkRequiredError(data.link_required.authorize_url, data.link_required.app_slug);
+      }
+    }
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({ detail: resp.statusText }));
       throw new Error(err.detail || `Request failed: ${resp.status}`);
@@ -171,5 +188,15 @@ export class OneclawWalletClient {
       this.token = data.token;
     }
     return data;
+  }
+}
+
+export class LinkRequiredError extends Error {
+  constructor(
+    public readonly authorizeUrl: string,
+    public readonly appSlug: string,
+  ) {
+    super("This account exists in another organization. User must authorize the connection.");
+    this.name = "LinkRequiredError";
   }
 }

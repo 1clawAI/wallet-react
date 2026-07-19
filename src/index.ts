@@ -1,6 +1,7 @@
 export { OneclawTreasuryWidget } from "./OneclawTreasuryWidget";
 export { OneclawEmbeddedWallet } from "./OneclawEmbeddedWallet";
 export { OneclawWalletProvider, useOneclawWallet } from "./context";
+export { OneclawWalletClient, LinkRequiredError } from "./client";
 export type {
   OneclawTreasuryWidgetProps,
   OneclawEmbeddedWalletProps,

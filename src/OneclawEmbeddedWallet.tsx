@@ -10,7 +10,7 @@ import type {
   SwapResult,
   FiatOnrampSession,
 } from "./types";
-import { OneclawWalletClient } from "./client";
+import { OneclawWalletClient, LinkRequiredError } from "./client";
 
 type View = "login" | "wallet" | "send" | "swap" | "buy" | "receive" | "history";
 
@@ -24,6 +24,7 @@ export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
     socialProviders = ["google", "apple"],
     onLogin,
     onLogout,
+    onLinkRequired,
     onTransactionSent,
     onSwapCompleted,
     onError,
@@ -83,6 +84,17 @@ export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
             auto_provision_chains: chains,
           }),
         });
+        if (res.status === 409) {
+          const data = await res.json();
+          if (data.link_required?.authorize_url) {
+            if (onLinkRequired) {
+              onLinkRequired(data.link_required.authorize_url, data.link_required.app_slug);
+            } else {
+              window.location.href = data.link_required.authorize_url;
+            }
+            return;
+          }
+        }
         if (!res.ok) {
           const err = await res.json().catch(() => ({ detail: "Login failed" }));
           throw new Error(err.detail || "Login failed");
@@ -98,6 +110,14 @@ export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
         setUser(walletUser);
         onLogin?.(walletUser);
       } catch (err) {
+        if (err instanceof LinkRequiredError) {
+          if (onLinkRequired) {
+            onLinkRequired(err.authorizeUrl, err.appSlug);
+          } else {
+            window.location.href = err.authorizeUrl;
+          }
+          return;
+        }
         handleError(err as Error);
       } finally {
         setLoading(false);
