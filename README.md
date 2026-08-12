@@ -1,6 +1,10 @@
 # @1claw/wallet-react
 
-Embeddable treasury wallet React component for Platform API apps built on 1Claw.
+React components for embedding 1Claw treasury wallets in your app.
+
+Built for platform developers using the 1Claw Platform API (`plt_` keys). Your users get multi-chain wallets, send/swap/receive flows, social login, email OTP, and passkey transaction auth without you running wallet infrastructure or storing private keys.
+
+Drop in `<OneclawEmbeddedWallet />` for a full login and dashboard experience, or `<OneclawTreasuryWidget />` for send/swap/receive on specific chains. Spend policies and per-user limits are enforced server-side through the Platform API.
 
 ## Installation
 
