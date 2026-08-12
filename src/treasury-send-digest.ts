@@ -1,22 +1,16 @@
-/** Must match vault `domain/treasury_send_digest.rs`. */
+/**
+ * Computes the SHA-256 hex digest used for passkey transaction authorization.
+ * Format: `chain|to|value_wei|data` (data defaults to empty string).
+ */
 export async function treasurySendTxDigest(
   chain: string,
   to: string,
   valueWei: string,
   data?: string,
 ): Promise<string> {
-  const normalizedData = normalizeSendData(data);
-  const canonical = `${chain.trim().toLowerCase()}|${to.trim().toLowerCase()}|${valueWei.trim()}|${normalizedData}`;
-  const bytes = new TextEncoder().encode(canonical);
-  const buf = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function normalizeSendData(data?: string): string {
-  if (!data) return "";
-  const t = data.trim().toLowerCase();
-  if (!t || t === "0x") return "";
-  return t;
+  const input = `${chain}|${to}|${valueWei}|${data || ""}`;
+  const encoded = new TextEncoder().encode(input);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }

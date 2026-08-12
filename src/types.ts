@@ -1,8 +1,23 @@
+export type WalletErrorCode =
+  | "network_error"
+  | "auth_error"
+  | "insufficient_balance"
+  | "rate_limited"
+  | "validation_error"
+  | "unknown_error";
+
+export interface WalletError {
+  code: WalletErrorCode;
+  message: string;
+  detail?: string;
+}
+
 export interface OneclawTreasuryWidgetProps {
   apiKey: string;
   baseUrl?: string;
   chains?: string[];
   theme?: "light" | "dark" | "auto";
+  brandColor?: string;
   onError?: (error: Error) => void;
   onTransactionSent?: (result: SendTransactionResult) => void;
   onSwapCompleted?: (result: SwapResult) => void;
@@ -41,9 +56,12 @@ export interface SendTransactionParams {
   to: string;
   valueWei: string;
   data?: string;
-  password: string;
+  password?: string;
+  passkeyToken?: string;
   gasless?: boolean;
 }
+
+export type AuthMethod = "password" | "passkey";
 
 export interface SendTransactionResult {
   txHash: string;
@@ -60,7 +78,8 @@ export interface SwapParams {
   sellToken: string;
   buyToken: string;
   sellAmount: string;
-  password: string;
+  password?: string;
+  passkeyToken?: string;
 }
 
 export interface SwapResult {
@@ -73,10 +92,23 @@ export interface SwapResult {
   status: string;
 }
 
+export interface SocialProviderConfig {
+  google?: { clientId: string };
+  apple?: { clientId: string; redirectUri: string };
+  discord?: { clientId: string; redirectUri: string };
+}
+
+export interface ThemeConfig {
+  mode?: "light" | "dark" | "auto";
+  brandColor?: string;
+  borderRadius?: string;
+}
+
 export interface OneclawEmbeddedWalletProps {
   appId: string;
   baseUrl?: string;
   theme?: "light" | "dark" | "auto";
+  brandColor?: string;
   chains?: string[];
   features?: {
     send?: boolean;
@@ -86,6 +118,7 @@ export interface OneclawEmbeddedWalletProps {
     history?: boolean;
   };
   socialProviders?: ("google" | "apple" | "discord")[];
+  socialProviderConfig?: SocialProviderConfig;
   onLogin?: (user: EmbeddedWalletUser) => void;
   onLogout?: () => void;
   onLinkRequired?: (authorizeUrl: string, appSlug: string) => void;
@@ -100,6 +133,7 @@ export interface EmbeddedWalletUser {
   email: string;
   walletAddress?: string;
   isNewUser: boolean;
+  isPasswordless: boolean;
 }
 
 export interface SocialLoginParams {

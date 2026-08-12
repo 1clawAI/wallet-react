@@ -5,29 +5,40 @@ const DEFAULT_BASE_URL = "https://api.1claw.xyz";
 export class OneclawWalletClient {
   private baseUrl: string;
   private token: string | null = null;
+  private appId: string | undefined;
 
   constructor(
-    private apiKey: string,
-    baseUrl?: string
+    apiKey: string,
+    baseUrl?: string,
+    appId?: string,
   ) {
     this.baseUrl = baseUrl || DEFAULT_BASE_URL;
+    this.appId = appId;
   }
 
-  private async ensureToken(): Promise<string> {
-    if (this.token) return this.token;
-    const resp = await fetch(`${this.baseUrl}/v1/auth/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ api_key: this.apiKey }),
-    });
-    if (!resp.ok) throw new Error(`Auth failed: ${resp.status}`);
-    const data = await resp.json();
-    this.token = data.token;
-    return this.token!;
+  setToken(token: string): void {
+    this.token = token;
+  }
+
+  clearToken(): void {
+    this.token = null;
+  }
+
+  get isAuthenticated(): boolean {
+    return this.token !== null;
+  }
+
+  private ensureToken(): string {
+    if (!this.token) {
+      throw new Error(
+        "Not authenticated. Call socialLogin() or verifyEmailOtp() first.",
+      );
+    }
+    return this.token;
   }
 
   private async request<T>(method: string, path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
-    const token = await this.ensureToken();
+    const token = this.ensureToken();
     const resp = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers: {
@@ -64,28 +75,49 @@ export class OneclawWalletClient {
   }
 
   async send(params: SendTransactionParams): Promise<SendTransactionResult> {
+    const headers: Record<string, string> = {};
+    if (params.passkeyToken) {
+      headers["X-Passkey-Token"] = params.passkeyToken;
+    } else if (params.password) {
+      headers["X-Auth-Confirm"] = params.password;
+    }
     return this.request<SendTransactionResult>(
       "POST",
       `/v1/treasury/wallets/${params.chain}/send`,
       { to: params.to, value_wei: params.valueWei, data: params.data, gasless: params.gasless },
-      { "X-Auth-Confirm": params.password }
+      headers
     );
   }
 
   async swap(params: SwapParams): Promise<SwapResult> {
+    const headers: Record<string, string> = {};
+    if (params.passkeyToken) {
+      headers["X-Passkey-Token"] = params.passkeyToken;
+    } else if (params.password) {
+      headers["X-Auth-Confirm"] = params.password;
+    }
     return this.request<SwapResult>(
       "POST",
       `/v1/treasury/wallets/${params.chain}/swap`,
       { sell_token: params.sellToken, buy_token: params.buyToken, sell_amount: params.sellAmount },
-      { "X-Auth-Confirm": params.password }
+      headers
     );
   }
 
-  async socialLogin(provider: string, idToken: string, autoProvisionChains?: string[]): Promise<SocialLoginResult> {
+  async socialLogin(provider: string, idToken: string, autoProvisionChains?: string[], oauthRedirectUri?: string): Promise<SocialLoginResult> {
+    const body: Record<string, unknown> = {
+      provider,
+      id_token: idToken,
+      auto_provision_chains: autoProvisionChains,
+      platform_app_id: this.appId,
+    };
+    if (oauthRedirectUri) {
+      body.oauth_redirect_uri = oauthRedirectUri;
+    }
     const resp = await fetch(`${this.baseUrl}/v1/auth/social-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider, id_token: idToken, auto_provision_chains: autoProvisionChains }),
+      body: JSON.stringify(body),
     });
     if (resp.status === 409) {
       const data = await resp.json();
@@ -97,7 +129,11 @@ export class OneclawWalletClient {
       const err = await resp.json().catch(() => ({ detail: resp.statusText }));
       throw new Error(err.detail || `Request failed: ${resp.status}`);
     }
-    return resp.json();
+    const data: SocialLoginResult = await resp.json();
+    if (data.token) {
+      this.token = data.token;
+    }
+    return data;
   }
 
   async beginPasskeyTxAuth(
@@ -153,7 +189,7 @@ export class OneclawWalletClient {
     const resp = await fetch(`${this.baseUrl}/v1/auth/email-otp/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, platform_app_id: this.apiKey }),
+      body: JSON.stringify({ email, platform_app_id: this.appId }),
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({ detail: resp.statusText }));
@@ -169,7 +205,7 @@ export class OneclawWalletClient {
       body: JSON.stringify({
         email,
         code,
-        platform_app_id: this.apiKey,
+        platform_app_id: this.appId,
         auto_provision_chains: autoProvisionChains,
       }),
     });
