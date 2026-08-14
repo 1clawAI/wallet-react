@@ -144,15 +144,16 @@ export class OneclawWalletClient {
     });
   }
 
-  /** SHA-256 hex digest for passkey tx-assert (chain|to|valueWei|data). */
+  /** SHA-256 hex digest for passkey tx-assert (chain|to|valueWei|data|...non-EVM fields). */
   async treasurySendTxDigest(
     chain: string,
     to: string,
     valueWei: string,
     data?: string,
+    extra?: import("./treasury-send-digest").NonEvmDigestFields,
   ): Promise<string> {
     const { treasurySendTxDigest } = await import("./treasury-send-digest");
-    return treasurySendTxDigest(chain, to, valueWei, data);
+    return treasurySendTxDigest(chain, to, valueWei, data, extra);
   }
 
   async completePasskeyTxAuth(assertion: {
