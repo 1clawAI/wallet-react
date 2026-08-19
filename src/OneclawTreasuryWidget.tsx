@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useEffect } from "react";
 import type { OneclawTreasuryWidgetProps } from "./types";
 import { OneclawWalletProvider, useOneclawWallet } from "./context";
@@ -9,8 +7,8 @@ function TreasuryWidgetInner({
   theme = "auto",
   brandColor,
   onError,
-  onTransactionSent,
-  onSwapCompleted,
+  onTransactionSent: _onTransactionSent,
+  onSwapCompleted: _onSwapCompleted,
   className,
 }: Omit<OneclawTreasuryWidgetProps, "apiKey" | "baseUrl" | "chains">) {
   const { wallets, balances, loading, error, refreshBalance } = useOneclawWallet();
@@ -22,6 +20,12 @@ function TreasuryWidgetInner({
   useEffect(() => {
     if (error) onError?.(error);
   }, [error, onError]);
+
+  useEffect(() => {
+    if (wallets.length > 0) {
+      wallets.forEach((w) => refreshBalance(w.chain));
+    }
+  }, [wallets, refreshBalance]);
 
   const themeClass =
     theme === "dark"

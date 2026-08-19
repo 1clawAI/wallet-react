@@ -102,6 +102,8 @@ export interface ThemeConfig {
   mode?: "light" | "dark" | "auto";
   brandColor?: string;
   borderRadius?: string;
+  fontFamily?: string;
+  cssVars?: Record<string, string>;
 }
 
 export interface OneclawEmbeddedWalletProps {
@@ -115,10 +117,10 @@ export interface OneclawEmbeddedWalletProps {
     swap?: boolean;
     buy?: boolean;
     receive?: boolean;
-    history?: boolean;
   };
   socialProviders?: ("google" | "apple" | "discord")[];
   socialProviderConfig?: SocialProviderConfig;
+  persistSession?: "session" | "local" | false;
   onLogin?: (user: EmbeddedWalletUser) => void;
   onLogout?: () => void;
   onLinkRequired?: (authorizeUrl: string, appSlug: string) => void;

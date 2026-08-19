@@ -1,13 +1,28 @@
 import React, { useCallback, useMemo } from "react";
 
-const DEFAULT_BASE_URL = "https://api.1claw.xyz";
+const DEFAULT_API_BASE_URL = "https://api.1claw.xyz";
+const DEFAULT_AUTHORIZE_BASE_URL = "https://1claw.xyz";
 const STORAGE_KEY = "1claw_pkce_verifier";
 const STATE_KEY = "1claw_oauth_state";
+
+function isDashboardUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === "1claw.xyz" || hostname.endsWith(".1claw.xyz");
+  } catch {
+    return false;
+  }
+}
 
 export interface SignInWith1ClawProps {
   clientId: string;
   redirectUri: string;
+  /** @deprecated Use `apiBaseUrl` and `authorizeBaseUrl` instead. */
   baseUrl?: string;
+  /** Base URL for API token exchange (default: https://api.1claw.xyz) */
+  apiBaseUrl?: string;
+  /** Base URL for OAuth consent redirect (default: https://1claw.xyz) */
+  authorizeBaseUrl?: string;
   scopes?: string[];
   onSuccess?: (tokenResponse: OAuthTokenResponse) => void;
   onError?: (error: Error) => void;
@@ -69,6 +84,8 @@ export function SignInWith1Claw({
   clientId,
   redirectUri,
   baseUrl,
+  apiBaseUrl,
+  authorizeBaseUrl,
   scopes = ["openid", "profile", "email"],
   onSuccess,
   onError,
@@ -76,10 +93,17 @@ export function SignInWith1Claw({
   size = "md",
   className,
 }: SignInWith1ClawProps) {
-  const resolvedBaseUrl = useMemo(
-    () => (baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, ""),
-    [baseUrl],
-  );
+  const resolvedAuthorizeUrl = useMemo(() => {
+    if (authorizeBaseUrl) return authorizeBaseUrl.replace(/\/$/, "");
+    if (baseUrl && isDashboardUrl(baseUrl)) return baseUrl.replace(/\/$/, "");
+    return DEFAULT_AUTHORIZE_BASE_URL;
+  }, [authorizeBaseUrl, baseUrl]);
+
+  const resolvedApiUrl = useMemo(() => {
+    if (apiBaseUrl) return apiBaseUrl.replace(/\/$/, "");
+    if (baseUrl && !isDashboardUrl(baseUrl)) return baseUrl.replace(/\/$/, "");
+    return DEFAULT_API_BASE_URL;
+  }, [apiBaseUrl, baseUrl]);
 
   const handleClick = useCallback(async () => {
     try {
@@ -89,7 +113,7 @@ export function SignInWith1Claw({
       sessionStorage.setItem(STORAGE_KEY, codeVerifier);
       sessionStorage.setItem(STATE_KEY, state);
 
-      const url = new URL("/oauth/authorize", resolvedBaseUrl);
+      const url = new URL("/oauth/authorize", resolvedAuthorizeUrl);
       url.searchParams.set("client_id", clientId);
       url.searchParams.set("redirect_uri", redirectUri);
       url.searchParams.set("response_type", "code");
@@ -103,7 +127,7 @@ export function SignInWith1Claw({
       const error = err instanceof Error ? err : new Error(String(err));
       onError?.(error);
     }
-  }, [clientId, redirectUri, resolvedBaseUrl, scopes, onError]);
+  }, [clientId, redirectUri, resolvedAuthorizeUrl, scopes, onError]);
 
   const s = sizeStyles[size];
   const isDark = theme === "dark";
@@ -190,9 +214,19 @@ export async function handleSignInCallback(params: {
   state?: string;
   clientId: string;
   redirectUri: string;
+  /** @deprecated Use `apiBaseUrl` instead. */
   baseUrl?: string;
+  /** Base URL for token exchange API (default: https://api.1claw.xyz) */
+  apiBaseUrl?: string;
 }): Promise<OAuthTokenResponse> {
-  const resolvedBaseUrl = (params.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
+  let resolvedApiUrl: string;
+  if (params.apiBaseUrl) {
+    resolvedApiUrl = params.apiBaseUrl.replace(/\/$/, "");
+  } else if (params.baseUrl && !isDashboardUrl(params.baseUrl)) {
+    resolvedApiUrl = params.baseUrl.replace(/\/$/, "");
+  } else {
+    resolvedApiUrl = DEFAULT_API_BASE_URL;
+  }
 
   const storedState = sessionStorage.getItem(STATE_KEY);
   if (params.state && storedState && params.state !== storedState) {
@@ -209,7 +243,7 @@ export async function handleSignInCallback(params: {
   sessionStorage.removeItem(STORAGE_KEY);
   sessionStorage.removeItem(STATE_KEY);
 
-  const resp = await fetch(`${resolvedBaseUrl}/v1/oauth/token`, {
+  const resp = await fetch(`${resolvedApiUrl}/v1/oauth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

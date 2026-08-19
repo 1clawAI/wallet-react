@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { OneclawWalletClient } from "./client";
-import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult, SwapParams, SwapResult } from "./types";
+import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult, SwapParams, SwapResult, SocialLoginResult } from "./types";
 
 interface WalletContextValue {
   wallets: WalletInfo[];
@@ -12,6 +12,10 @@ interface WalletContextValue {
   generateWallets: (chains?: string[]) => Promise<WalletInfo[]>;
   send: (params: SendTransactionParams) => Promise<SendTransactionResult>;
   swap: (params: SwapParams) => Promise<SwapResult>;
+  client: OneclawWalletClient;
+  loginWithEmailOtp: (email: string, code: string, chains?: string[]) => Promise<SocialLoginResult>;
+  loginWithSocial: (provider: string, idToken: string, chains?: string[], redirectUri?: string) => Promise<SocialLoginResult>;
+  logout: () => void;
 }
 
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -19,10 +23,14 @@ const WalletContext = createContext<WalletContextValue | null>(null);
 interface ProviderProps {
   apiKey: string;
   baseUrl?: string;
+  appId?: string;
+  persistSession?: "session" | "local" | false;
   children: React.ReactNode;
 }
 
-export function OneclawWalletProvider({ apiKey, baseUrl, children }: ProviderProps) {
+const SESSION_STORAGE_KEY = "1claw_wallet_token";
+
+export function OneclawWalletProvider({ apiKey, baseUrl, appId, persistSession = "session", children }: ProviderProps) {
   if (apiKey.startsWith("1ck_") || apiKey.startsWith("ocv_")) {
     console.error(
       "[1claw/wallet-react] SECURITY: Do not embed human (1ck_) or agent (ocv_) API keys in client-side code. Use a session token or the embedded wallet flow instead.",
@@ -30,14 +38,34 @@ export function OneclawWalletProvider({ apiKey, baseUrl, children }: ProviderPro
   }
 
   const client = useMemo(() => {
-    const c = new OneclawWalletClient("", baseUrl);
-    c.setToken(apiKey);
+    const c = new OneclawWalletClient("", baseUrl, appId);
+    if (apiKey && !apiKey.startsWith("plt_")) {
+      c.setToken(apiKey);
+    } else if (typeof window !== "undefined" && persistSession) {
+      const storage = persistSession === "local" ? localStorage : sessionStorage;
+      const stored = storage.getItem(SESSION_STORAGE_KEY);
+      if (stored) c.setToken(stored);
+    }
+    if (apiKey.startsWith("plt_")) {
+      c.setToken(apiKey);
+    }
     return c;
-  }, [apiKey, baseUrl]);
+  }, [apiKey, baseUrl, appId, persistSession]);
+
   const [wallets, setWallets] = useState<WalletInfo[]>([]);
   const [balances, setBalances] = useState<Record<string, WalletBalance>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  const persistToken = useCallback((token: string | null) => {
+    if (typeof window === "undefined" || !persistSession) return;
+    const storage = persistSession === "local" ? localStorage : sessionStorage;
+    if (token) {
+      storage.setItem(SESSION_STORAGE_KEY, token);
+    } else {
+      storage.removeItem(SESSION_STORAGE_KEY);
+    }
+  }, [persistSession]);
 
   const refreshWallets = useCallback(async () => {
     try {
@@ -89,13 +117,42 @@ export function OneclawWalletProvider({ apiKey, baseUrl, children }: ProviderPro
     [client]
   );
 
+  const loginWithEmailOtp = useCallback(
+    async (email: string, code: string, chains?: string[]): Promise<SocialLoginResult> => {
+      const result = await client.verifyEmailOtp(email, code, chains);
+      if (result.token) persistToken(result.token);
+      return result;
+    },
+    [client, persistToken]
+  );
+
+  const loginWithSocial = useCallback(
+    async (provider: string, idToken: string, chains?: string[], redirectUri?: string): Promise<SocialLoginResult> => {
+      const result = await client.socialLogin(provider, idToken, chains, redirectUri);
+      if (result.token) persistToken(result.token);
+      return result;
+    },
+    [client, persistToken]
+  );
+
+  const logout = useCallback(() => {
+    client.clearToken();
+    persistToken(null);
+    setWallets([]);
+    setBalances({});
+  }, [client, persistToken]);
+
   useEffect(() => {
-    refreshWallets();
-  }, [refreshWallets]);
+    if (client.isAuthenticated) {
+      refreshWallets();
+    } else {
+      setLoading(false);
+    }
+  }, [refreshWallets, client]);
 
   return (
     <WalletContext.Provider
-      value={{ wallets, balances, loading, error, refreshWallets, refreshBalance, generateWallets, send, swap }}
+      value={{ wallets, balances, loading, error, refreshWallets, refreshBalance, generateWallets, send, swap, client, loginWithEmailOtp, loginWithSocial, logout }}
     >
       {children}
     </WalletContext.Provider>

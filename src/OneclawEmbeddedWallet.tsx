@@ -1,20 +1,34 @@
-"use client";
-
-import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import type {
   OneclawEmbeddedWalletProps,
   EmbeddedWalletUser,
   WalletInfo,
   WalletBalance,
-  SendTransactionResult,
-  SwapResult,
   SocialProviderConfig,
 } from "./types";
 import { OneclawWalletClient, LinkRequiredError } from "./client";
 import { classifyError } from "./utils";
 import { injectThemeStyles } from "./theme";
+import { OneclawWalletProvider, useOneclawWallet } from "./context";
 
-type View = "login" | "wallet" | "send" | "swap" | "buy" | "receive" | "history";
+type View = "login" | "wallet" | "send" | "swap" | "buy" | "receive";
+
+const CHAIN_DECIMALS: Record<string, number> = {
+  ethereum: 18,
+  base: 18,
+  optimism: 18,
+  arbitrum: 18,
+  polygon: 18,
+  solana: 9,
+  bitcoin: 8,
+  xrp: 6,
+  cardano: 6,
+  tron: 6,
+};
+
+function chainDecimals(chain: string): number {
+  return CHAIN_DECIMALS[chain.toLowerCase()] ?? 18;
+}
 
 // ─── Toast system ──────────────────────────────────────────────────
 
@@ -185,14 +199,13 @@ function buildDiscordAuthUrl(clientId: string, redirectUri: string): string {
 
 // ─── Main component ────────────────────────────────────────────────
 
-export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
+function EmbeddedWalletInner(props: OneclawEmbeddedWalletProps) {
   const {
     appId,
-    baseUrl,
     theme = "auto",
     brandColor,
     chains = ["ethereum"],
-    features = { send: true, swap: true, buy: true, receive: true, history: true },
+    features = { send: true, swap: true, buy: true, receive: true },
     socialProviders = ["google", "apple"],
     socialProviderConfig,
     onLogin,
@@ -204,23 +217,17 @@ export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
     className,
   } = props;
 
+  const { wallets, balances, loading: walletsLoading, client, loginWithEmailOtp, loginWithSocial, logout: contextLogout, refreshBalance: ctxRefreshBalance } = useOneclawWallet();
+
   const [view, setView] = useState<View>("login");
   const [user, setUser] = useState<EmbeddedWalletUser | null>(null);
-  const [wallets, setWallets] = useState<WalletInfo[]>([]);
-  const [balances, setBalances] = useState<WalletBalance[]>([]);
   const [loading, setLoading] = useState(false);
-  const [walletsLoading, setWalletsLoading] = useState(false);
   const [operationLoading, setOperationLoading] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   useEffect(() => {
     injectThemeStyles(theme === "auto" ? "auto" : theme, brandColor);
   }, [theme, brandColor]);
-
-  const client = useMemo(
-    () => new OneclawWalletClient("", baseUrl, appId),
-    [appId, baseUrl],
-  );
 
   const showToast = useCallback((type: "error" | "success", message: string) => {
     const id = ++toastIdCounter;
@@ -241,23 +248,6 @@ export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
     [onError, showToast],
   );
 
-  const loadWallets = useCallback(
-    async (c: OneclawWalletClient) => {
-      setWalletsLoading(true);
-      try {
-        const w = await c.listWallets();
-        setWallets(w);
-        const b = await Promise.all(w.map((wallet) => c.getBalance(wallet.chain)));
-        setBalances(b);
-      } catch (err) {
-        handleError(err);
-      } finally {
-        setWalletsLoading(false);
-      }
-    },
-    [handleError],
-  );
-
   const completeLogin = useCallback(
     (data: { token: string; user_id: string; email: string; wallet_address?: string; is_new_user: boolean }) => {
       const walletUser: EmbeddedWalletUser = {
@@ -270,9 +260,8 @@ export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
       setUser(walletUser);
       setView("wallet");
       onLogin?.(walletUser);
-      loadWallets(client);
     },
-    [client, onLogin, loadWallets],
+    [onLogin],
   );
 
   const handleLinkRequired = useCallback(
@@ -290,16 +279,7 @@ export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
     async (provider: "google" | "apple" | "discord", idToken: string, redirectUri?: string) => {
       setLoading(true);
       try {
-        const body: Record<string, unknown> = {
-          provider,
-          id_token: idToken,
-          auto_provision_chains: chains,
-          platform_app_id: appId,
-        };
-        if (provider === "discord" && redirectUri) {
-          body.oauth_redirect_uri = redirectUri;
-        }
-        const data = await client.socialLogin(provider, idToken, chains, redirectUri);
+        const data = await loginWithSocial(provider, idToken, chains, redirectUri);
         completeLogin(data);
       } catch (err) {
         if (err instanceof LinkRequiredError) {
@@ -311,7 +291,7 @@ export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
         setLoading(false);
       }
     },
-    [client, chains, appId, completeLogin, handleLinkRequired, handleError],
+    [loginWithSocial, chains, completeLogin, handleLinkRequired, handleError],
   );
 
   const handleGoogleLogin = useCallback(async () => {
@@ -377,7 +357,7 @@ export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
     async (email: string, code: string) => {
       setLoading(true);
       try {
-        const data = await client.verifyEmailOtp(email, code, chains);
+        const data = await loginWithEmailOtp(email, code, chains);
         completeLogin(data);
       } catch (err) {
         if (err instanceof LinkRequiredError) {
@@ -389,54 +369,50 @@ export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
         setLoading(false);
       }
     },
-    [client, chains, completeLogin, handleLinkRequired, handleError],
+    [loginWithEmailOtp, chains, completeLogin, handleLinkRequired, handleError],
   );
 
   const handleLogout = useCallback(() => {
-    client.clearToken();
+    contextLogout();
     setUser(null);
-    setWallets([]);
-    setBalances([]);
     setView("login");
     onLogout?.();
-  }, [client, onLogout]);
+  }, [contextLogout, onLogout]);
 
   const handleSend = useCallback(
     async (params: { chain: string; to: string; valueWei: string; password?: string; passkeyToken?: string; gasless?: boolean }) => {
-      if (!client) return;
       setOperationLoading(true);
       try {
         const result = await client.send(params);
         showToast("success", "Transaction sent successfully!");
         onTransactionSent?.(result);
         setView("wallet");
-        if (client) await loadWallets(client);
+        ctxRefreshBalance(params.chain);
       } catch (err) {
         handleError(err);
       } finally {
         setOperationLoading(false);
       }
     },
-    [client, onTransactionSent, handleError, showToast, loadWallets],
+    [client, onTransactionSent, handleError, showToast, ctxRefreshBalance],
   );
 
   const handleSwap = useCallback(
     async (params: { chain: string; sellToken: string; buyToken: string; sellAmount: string; password?: string; passkeyToken?: string }) => {
-      if (!client) return;
       setOperationLoading(true);
       try {
         const result = await client.swap(params);
         showToast("success", "Swap completed successfully!");
         onSwapCompleted?.(result);
         setView("wallet");
-        if (client) await loadWallets(client);
+        ctxRefreshBalance(params.chain);
       } catch (err) {
         handleError(err);
       } finally {
         setOperationLoading(false);
       }
     },
-    [client, onSwapCompleted, handleError, showToast, loadWallets],
+    [client, onSwapCompleted, handleError, showToast, ctxRefreshBalance],
   );
 
   const themeClass =
@@ -514,6 +490,14 @@ export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
         />
       )}
     </div>
+  );
+}
+
+export function OneclawEmbeddedWallet(props: OneclawEmbeddedWalletProps) {
+  return (
+    <OneclawWalletProvider apiKey="" baseUrl={props.baseUrl} appId={props.appId} persistSession={props.persistSession}>
+      <EmbeddedWalletInner {...props} />
+    </OneclawWalletProvider>
   );
 }
 
@@ -673,12 +657,14 @@ function WalletDashboardView({
 }: {
   user: EmbeddedWalletUser;
   wallets: WalletInfo[];
-  balances: WalletBalance[];
+  balances: Record<string, WalletBalance>;
   features: OneclawEmbeddedWalletProps["features"];
   onNavigate: (view: View) => void;
   onLogout: () => void;
   walletsLoading: boolean;
 }) {
+  const balanceEntries = wallets.map((w) => balances[w.chain]).filter(Boolean);
+
   return (
     <div className="ocw-dashboard">
       <div className="ocw-dashboard-header">
@@ -691,13 +677,20 @@ function WalletDashboardView({
       <div className="ocw-balances">
         {walletsLoading ? (
           <BalanceSkeleton />
-        ) : balances.length > 0 ? (
-          balances.map((b) => (
+        ) : balanceEntries.length > 0 ? (
+          balanceEntries.map((b) => (
             <div key={b.chain} className="ocw-balance-row">
               <span className="ocw-chain-name">{b.chain}</span>
               <span className="ocw-balance-value">
                 {b.native.balanceDisplay} {b.native.symbol}
               </span>
+            </div>
+          ))
+        ) : wallets.length > 0 ? (
+          wallets.map((w) => (
+            <div key={w.chain} className="ocw-balance-row">
+              <span className="ocw-chain-name">{w.chain}</span>
+              <span className="ocw-balance-value">—</span>
             </div>
           ))
         ) : (
@@ -761,7 +754,7 @@ function SendView({
     setPasskeyLoading(true);
     setPasskeyError(null);
     try {
-      const valueWei = (parseFloat(amount) * 1e18).toFixed(0);
+      const valueWei = (parseFloat(amount) * 10 ** chainDecimals(chain)).toFixed(0);
       const txDigest = await client.treasurySendTxDigest(chain, to, valueWei);
       const beginResp = await client.beginPasskeyTxAuth(txDigest);
 
@@ -769,7 +762,7 @@ function SendView({
         publicKey: {
           challenge: Uint8Array.from(atob(beginResp.challenge.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0)),
           rpId: beginResp.rp_id,
-          allowCredentials: (beginResp.allow_credentials || []).map((cred) => {
+          allowCredentials: (beginResp.allow_credentials || []).map((cred: unknown) => {
             const c = cred as { id: string; type?: string };
             return {
               id: Uint8Array.from(atob(c.id.replace(/-/g, "+").replace(/_/g, "/")), (ch) => ch.charCodeAt(0)),
@@ -848,7 +841,7 @@ function SendView({
           className="ocw-btn ocw-btn-primary"
           disabled={isSubmitting || !to || !amount || !password}
           onClick={() => {
-            const valueWei = (parseFloat(amount) * 1e18).toFixed(0);
+            const valueWei = (parseFloat(amount) * 10 ** chainDecimals(chain)).toFixed(0);
             onSend({ chain, to, valueWei, password, gasless });
           }}
         >

@@ -1,4 +1,6 @@
-const STYLE_ID = "ocw-theme-styles";
+import type { ThemeConfig } from "./types";
+
+type CSSProperties = Record<string, string | number>;
 
 function hexToRgb(hex: string): string {
   const h = hex.replace("#", "");
@@ -8,6 +10,92 @@ function hexToRgb(hex: string): string {
   return `${r}, ${g}, ${b}`;
 }
 
+const STYLE_ID = "ocw-base-styles";
+
+export interface ThemeVars {
+  [key: string]: string;
+}
+
+export function resolveThemeVars(config?: ThemeConfig): ThemeVars {
+  const brand = config?.brandColor || "#6366f1";
+  const brandRgb = hexToRgb(brand);
+  const radius = config?.borderRadius || "12px";
+  const radiusSm = config?.borderRadius
+    ? `calc(${config.borderRadius} - 4px)`
+    : "8px";
+  const font =
+    config?.fontFamily ||
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
+  const vars: ThemeVars = {
+    "--ocw-brand": brand,
+    "--ocw-brand-rgb": brandRgb,
+    "--ocw-radius": radius,
+    "--ocw-radius-sm": radiusSm,
+    "--ocw-font": font,
+    ...(config?.cssVars || {}),
+  };
+
+  return vars;
+}
+
+export function buildRootStyle(
+  theme: "light" | "dark" | "auto",
+  config?: ThemeConfig,
+): CSSProperties {
+  const vars = resolveThemeVars(config);
+
+  const light: ThemeVars = {
+    "--ocw-bg": "#ffffff",
+    "--ocw-bg-secondary": "#f9fafb",
+    "--ocw-bg-hover": "#f3f4f6",
+    "--ocw-text": "#111827",
+    "--ocw-text-secondary": "#6b7280",
+    "--ocw-text-tertiary": "#9ca3af",
+    "--ocw-border": "#e5e7eb",
+    "--ocw-border-focus": vars["--ocw-brand"],
+    "--ocw-input-bg": "#ffffff",
+    "--ocw-error-bg": "#fef2f2",
+    "--ocw-error-text": "#dc2626",
+    "--ocw-success-bg": "#f0fdf4",
+    "--ocw-success-text": "#16a34a",
+    "--ocw-skeleton": "#e5e7eb",
+    "--ocw-skeleton-shine": "#f3f4f6",
+    "--ocw-shadow": "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
+  };
+
+  const dark: ThemeVars = {
+    "--ocw-bg": "#18181b",
+    "--ocw-bg-secondary": "#27272a",
+    "--ocw-bg-hover": "#3f3f46",
+    "--ocw-text": "#fafafa",
+    "--ocw-text-secondary": "#a1a1aa",
+    "--ocw-text-tertiary": "#71717a",
+    "--ocw-border": "#3f3f46",
+    "--ocw-border-focus": vars["--ocw-brand"],
+    "--ocw-input-bg": "#27272a",
+    "--ocw-error-bg": "#450a0a",
+    "--ocw-error-text": "#fca5a5",
+    "--ocw-success-bg": "#052e16",
+    "--ocw-success-text": "#86efac",
+    "--ocw-skeleton": "#3f3f46",
+    "--ocw-skeleton-shine": "#52525b",
+    "--ocw-shadow": "0 1px 3px rgba(0,0,0,0.3)",
+  };
+
+  const resolvedMode = config?.mode || theme;
+  const palette = resolvedMode === "dark" ? dark : light;
+
+  return {
+    ...vars,
+    ...palette,
+  } as CSSProperties;
+}
+
+/**
+ * @deprecated Use `buildRootStyle` for per-instance scoping instead.
+ * Kept for backward compatibility with existing integrations that rely on global injection.
+ */
 export function injectThemeStyles(
   theme: "light" | "dark" | "auto",
   brandColor?: string,
@@ -100,7 +188,7 @@ export function injectThemeStyles(
 
 /* ── Base layout ───────────────────────────────────── */
 .ocw-embedded-wallet {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--ocw-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
   background: var(--ocw-bg);
   color: var(--ocw-text);
   border: 1px solid var(--ocw-border);

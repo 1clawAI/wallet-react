@@ -4,7 +4,7 @@ export { OneclawWalletProvider, useOneclawWallet } from "./context";
 export { OneclawWalletClient, LinkRequiredError } from "./client";
 export { SignInWith1Claw, handleSignInCallback } from "./SignInWith1Claw";
 export { formatBalance, shortenAddress, classifyError } from "./utils";
-export { injectThemeStyles } from "./theme";
+export { injectThemeStyles, buildRootStyle, resolveThemeVars } from "./theme";
 export type { SignInWith1ClawProps, OAuthTokenResponse as SignInTokenResponse } from "./SignInWith1Claw";
 export type {
   OneclawTreasuryWidgetProps,

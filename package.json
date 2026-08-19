@@ -1,23 +1,32 @@
 {
   "name": "@1claw/wallet-react",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Embeddable treasury wallet component for Platform API apps built on 1Claw",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.mjs"
+    },
+    "./oauth": {
+      "types": "./dist/SignInWith1Claw.d.ts",
+      "import": "./dist/SignInWith1Claw.mjs"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "build": "tsup src/index.ts src/client.ts src/SignInWith1Claw.tsx --format cjs,esm --dts",
+    "dev": "tsup src/index.ts src/client.ts src/SignInWith1Claw.tsx --format cjs,esm --dts --watch",
     "lint": "tsc --noEmit"
   },
   "peerDependencies": {
