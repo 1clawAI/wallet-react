@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from "react";
+import { safeRedirect } from "./utils";
 
 const DEFAULT_API_BASE_URL = "https://api.1claw.xyz";
 const DEFAULT_AUTHORIZE_BASE_URL = "https://1claw.xyz";
@@ -122,7 +123,7 @@ export function SignInWith1Claw({
       url.searchParams.set("code_challenge", codeChallenge);
       url.searchParams.set("code_challenge_method", "S256");
 
-      window.location.href = url.toString();
+      safeRedirect(url.toString(), [new URL(resolvedAuthorizeUrl).origin]);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       onError?.(error);

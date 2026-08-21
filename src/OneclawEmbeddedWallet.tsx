@@ -7,7 +7,7 @@ import type {
   SocialProviderConfig,
 } from "./types";
 import { OneclawWalletClient, LinkRequiredError } from "./client";
-import { classifyError } from "./utils";
+import { classifyError, safeRedirect } from "./utils";
 import { injectThemeStyles } from "./theme";
 import { OneclawWalletProvider, useOneclawWallet } from "./context";
 
@@ -269,7 +269,7 @@ function EmbeddedWalletInner(props: OneclawEmbeddedWalletProps) {
       if (onLinkRequired) {
         onLinkRequired(err.authorizeUrl, err.appSlug);
       } else {
-        window.location.href = err.authorizeUrl;
+        safeRedirect(err.authorizeUrl);
       }
     },
     [onLinkRequired],

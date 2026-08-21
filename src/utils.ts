@@ -83,3 +83,44 @@ export function classifyError(
     detail: msg,
   };
 }
+
+const DEFAULT_REDIRECT_ORIGINS = [
+  "https://1claw.xyz",
+  "https://www.1claw.xyz",
+  "https://1claw.co",
+  "https://www.1claw.co",
+];
+
+function isAllowedRedirectOrigin(origin: string, extra: string[]): boolean {
+  if (DEFAULT_REDIRECT_ORIGINS.includes(origin) || extra.includes(origin)) {
+    return true;
+  }
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname === "1claw.xyz" ||
+      hostname.endsWith(".1claw.xyz") ||
+      hostname === "1claw.co" ||
+      hostname.endsWith(".1claw.co") ||
+      hostname === "localhost" ||
+      hostname === "127.0.0.1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Assign `window.location` only after origin allowlisting (open-redirect defense). */
+export function safeRedirect(url: string, allowedOrigins: string[] = []): void {
+  const parsed = new URL(url);
+  if (
+    parsed.protocol !== "https:" &&
+    !(parsed.protocol === "http:" && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1"))
+  ) {
+    throw new Error("Redirect blocked: HTTPS required");
+  }
+  if (!isAllowedRedirectOrigin(parsed.origin, allowedOrigins)) {
+    throw new Error("Redirect blocked: origin is not allowlisted");
+  }
+  window.location.href = parsed.href;
+}
