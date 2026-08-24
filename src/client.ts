@@ -1,4 +1,6 @@
-import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult, SwapParams, SwapResult, SocialLoginResult, PasskeyTxAuthResult, FiatOnrampSession } from "./types";
+import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult, SwapParams, SwapResult, SocialLoginResult, EffectiveAuthPolicyResponse } from "./types";
+import { HumanFactorAuthRequiredError } from "./types";
+import { performPasskeyTxAssert, registerPasskey, isWebAuthnSupported } from "./passkeys";
 
 const DEFAULT_BASE_URL = "https://api.1claw.xyz";
 
@@ -74,13 +76,55 @@ export class OneclawWalletClient {
     return this.request<WalletBalance>("GET", `/v1/treasury/wallets/${chain}/balance${params}`);
   }
 
-  async send(params: SendTransactionParams): Promise<SendTransactionResult> {
-    const headers: Record<string, string> = {};
-    if (params.passkeyToken) {
-      headers["X-Passkey-Token"] = params.passkeyToken;
-    } else if (params.password) {
-      headers["X-Auth-Confirm"] = params.password;
+  async getEffectiveAuthPolicy(): Promise<EffectiveAuthPolicyResponse> {
+    return this.request<EffectiveAuthPolicyResponse>("GET", "/v1/treasury/wallets/auth-policy");
+  }
+
+  async registerPasskey(name?: string): Promise<void> {
+    await registerPasskey(
+      (method, path, body, headers) => this.request(method, path, body, headers),
+      name,
+    );
+  }
+
+  private async resolveSendAuth(params: SendTransactionParams): Promise<Record<string, string>> {
+    if (params.passkeyToken) return { "X-Passkey-Token": params.passkeyToken };
+    if (params.password) return { "X-Auth-Confirm": params.password };
+
+    const auth = await this.getEffectiveAuthPolicy();
+    const mode = auth.policy.send;
+    if (mode === "passkey_only" || mode === "passkey_required") {
+      if (auth.registered_passkeys === 0) {
+        throw new HumanFactorAuthRequiredError(
+          "Passkey required. Register a passkey to continue.",
+          ["passkey"],
+          true,
+        );
+      }
+      if (!isWebAuthnSupported()) {
+        throw new HumanFactorAuthRequiredError("WebAuthn is not supported in this browser.", ["passkey"]);
+      }
+      const digest = await this.treasurySendTxDigest(
+        params.chain,
+        params.to,
+        params.valueWei,
+        params.data,
+      );
+      const token = await performPasskeyTxAssert(
+        (method, path, body) => this.request(method, path, body),
+        digest,
+        "send",
+      );
+      return { "X-Passkey-Token": token };
     }
+    throw new HumanFactorAuthRequiredError(
+      "Password or passkey required for this send.",
+      mode === "password_only" ? ["password"] : ["password", "passkey"],
+    );
+  }
+
+  async send(params: SendTransactionParams): Promise<SendTransactionResult> {
+    const headers = await this.resolveSendAuth(params);
     return this.request<SendTransactionResult>(
       "POST",
       `/v1/treasury/wallets/${params.chain}/send`,
@@ -95,6 +139,31 @@ export class OneclawWalletClient {
       headers["X-Passkey-Token"] = params.passkeyToken;
     } else if (params.password) {
       headers["X-Auth-Confirm"] = params.password;
+    } else {
+      const auth = await this.getEffectiveAuthPolicy();
+      if (auth.policy.swap === "passkey_only" || auth.policy.swap === "passkey_required") {
+        if (auth.registered_passkeys === 0) {
+          throw new HumanFactorAuthRequiredError(
+            "Passkey required for swap. Register a passkey to continue.",
+            ["passkey"],
+            true,
+          );
+        }
+        const { treasurySwapTxDigest } = await import("./treasury-swap-digest");
+        const digest = await treasurySwapTxDigest(
+          params.chain,
+          params.sellToken,
+          params.buyToken,
+          params.sellAmount,
+        );
+        headers["X-Passkey-Token"] = await performPasskeyTxAssert(
+          (method, path, body) => this.request(method, path, body),
+          digest,
+          "swap",
+        );
+      } else {
+        throw new HumanFactorAuthRequiredError("Password or passkey required for swap.", ["password", "passkey"]);
+      }
     }
     return this.request<SwapResult>(
       "POST",
@@ -138,9 +207,11 @@ export class OneclawWalletClient {
 
   async beginPasskeyTxAuth(
     txDigest: string,
+    action: "send" | "swap" = "send",
   ): Promise<{ challenge: string; rp_id: string; allow_credentials: unknown[] }> {
     return this.request("POST", "/v1/auth/passkeys/tx-assert/begin", {
       tx_digest: txDigest,
+      action,
     });
   }
 

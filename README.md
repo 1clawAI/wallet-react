@@ -170,6 +170,24 @@ export default function WalletPage() {
 }
 ```
 
+## Passkey enrollment (passwordless / HFA)
+
+Social and email-OTP users often have no password. When your platform spend policy sets `passkey_only` for send/swap, users must register a passkey before transacting:
+
+```tsx
+const { registerPasskey, getEffectiveAuthPolicy, send } = useOneclawWallet();
+
+const auth = await getEffectiveAuthPolicy();
+if (auth.registered_passkeys === 0 && auth.policy.send === "passkey_only") {
+  await registerPasskey("My device");
+}
+
+// send() auto-routes to passkey tx-assert when policy requires it
+await send({ chain: "ethereum", to: "0x...", valueWei: "1000000000000000" });
+```
+
+Backend endpoints: `POST /v1/auth/passkeys/register/begin|complete`, `GET /v1/treasury/wallets/auth-policy`.
+
 ## Security
 
 - The `apiKey` is a Platform API key, not a user key — it inherits platform custody guarantees.

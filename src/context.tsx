@@ -12,6 +12,8 @@ interface WalletContextValue {
   generateWallets: (chains?: string[]) => Promise<WalletInfo[]>;
   send: (params: SendTransactionParams) => Promise<SendTransactionResult>;
   swap: (params: SwapParams) => Promise<SwapResult>;
+  getEffectiveAuthPolicy: () => Promise<EffectiveAuthPolicyResponse>;
+  registerPasskey: (name?: string) => Promise<void>;
   client: OneclawWalletClient;
   loginWithEmailOtp: (email: string, code: string, chains?: string[]) => Promise<SocialLoginResult>;
   loginWithSocial: (provider: string, idToken: string, chains?: string[], redirectUri?: string) => Promise<SocialLoginResult>;
@@ -117,6 +119,15 @@ export function OneclawWalletProvider({ apiKey, baseUrl, appId, persistSession =
     [client]
   );
 
+  const getEffectiveAuthPolicy = useCallback(async () => {
+    return client.getEffectiveAuthPolicy();
+  }, [client]);
+
+  const registerPasskey = useCallback(
+    async (name?: string) => client.registerPasskey(name),
+    [client],
+  );
+
   const loginWithEmailOtp = useCallback(
     async (email: string, code: string, chains?: string[]): Promise<SocialLoginResult> => {
       const result = await client.verifyEmailOtp(email, code, chains);
@@ -152,7 +163,7 @@ export function OneclawWalletProvider({ apiKey, baseUrl, appId, persistSession =
 
   return (
     <WalletContext.Provider
-      value={{ wallets, balances, loading, error, refreshWallets, refreshBalance, generateWallets, send, swap, client, loginWithEmailOtp, loginWithSocial, logout }}
+      value={{ wallets, balances, loading, error, refreshWallets, refreshBalance, generateWallets, send, swap, getEffectiveAuthPolicy, registerPasskey, client, loginWithEmailOtp, loginWithSocial, logout }}
     >
       {children}
     </WalletContext.Provider>

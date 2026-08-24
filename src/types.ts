@@ -158,10 +158,29 @@ export interface PasskeyTxAuthResult {
   expires_in: number;
 }
 
-export interface FiatOnrampSession {
-  session_url: string;
-  provider: string;
-  destination_address: string;
-  chain: string;
-  asset: string;
+export interface HumanFactorAuthPolicy {
+  send: string;
+  swap: string;
+  export: string;
+  conditional?: {
+    require_passkey_above_usd?: string | null;
+    require_passkey_for_new_recipient?: boolean;
+  };
+}
+
+export interface EffectiveAuthPolicyResponse {
+  policy: HumanFactorAuthPolicy;
+  source: string;
+  registered_passkeys: number;
+}
+
+export class HumanFactorAuthRequiredError extends Error {
+  constructor(
+    message: string,
+    public readonly requiredFactors: string[] = [],
+    public readonly registerPasskeyRequired = false,
+  ) {
+    super(message);
+    this.name = "HumanFactorAuthRequiredError";
+  }
 }
