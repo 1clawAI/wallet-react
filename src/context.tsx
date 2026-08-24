@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { OneclawWalletClient } from "./client";
-import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult, SwapParams, SwapResult, SocialLoginResult } from "./types";
+import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult, SwapParams, SwapResult, SocialLoginResult, EffectiveAuthPolicyResponse } from "./types";
 
 interface WalletContextValue {
   wallets: WalletInfo[];

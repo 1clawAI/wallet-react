@@ -467,6 +467,26 @@ export function injectThemeStyles(
   margin-bottom: 8px;
 }
 
+.ocw-passkey-nudge {
+  padding: 16px;
+  border: 1px solid var(--ocw-border);
+  border-radius: var(--ocw-radius-sm);
+  background: var(--ocw-bg-secondary);
+  margin-bottom: 12px;
+}
+.ocw-passkey-nudge-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ocw-text-primary);
+  margin: 0 0 8px;
+}
+.ocw-passkey-nudge-text {
+  font-size: 13px;
+  color: var(--ocw-text-secondary);
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
 .ocw-address-display {
   text-align: center;
   padding: 16px;

@@ -5,11 +5,14 @@ import type {
   WalletInfo,
   WalletBalance,
   SocialProviderConfig,
+  EffectiveAuthPolicyResponse,
 } from "./types";
 import { OneclawWalletClient, LinkRequiredError } from "./client";
 import { classifyError, safeRedirect } from "./utils";
 import { injectThemeStyles } from "./theme";
 import { OneclawWalletProvider, useOneclawWallet } from "./context";
+import { passkeyRegistrationRequired } from "./passkey-auth";
+import { isWebAuthnSupported } from "./passkeys";
 
 type View = "login" | "wallet" | "send" | "swap" | "buy" | "receive";
 
@@ -217,7 +220,18 @@ function EmbeddedWalletInner(props: OneclawEmbeddedWalletProps) {
     className,
   } = props;
 
-  const { wallets, balances, loading: walletsLoading, client, loginWithEmailOtp, loginWithSocial, logout: contextLogout, refreshBalance: ctxRefreshBalance } = useOneclawWallet();
+  const {
+    wallets,
+    balances,
+    loading: walletsLoading,
+    client,
+    loginWithEmailOtp,
+    loginWithSocial,
+    logout: contextLogout,
+    refreshBalance: ctxRefreshBalance,
+    getEffectiveAuthPolicy,
+    registerPasskey,
+  } = useOneclawWallet();
 
   const [view, setView] = useState<View>("login");
   const [user, setUser] = useState<EmbeddedWalletUser | null>(null);
@@ -460,6 +474,8 @@ function EmbeddedWalletInner(props: OneclawEmbeddedWalletProps) {
           loading={operationLoading}
           isPasswordless={user?.isPasswordless ?? false}
           client={client}
+          getEffectiveAuthPolicy={getEffectiveAuthPolicy}
+          registerPasskey={registerPasskey}
           onSend={handleSend}
           onBack={() => setView("wallet")}
         />
@@ -470,6 +486,8 @@ function EmbeddedWalletInner(props: OneclawEmbeddedWalletProps) {
           wallets={wallets}
           loading={operationLoading}
           isPasswordless={user?.isPasswordless ?? false}
+          getEffectiveAuthPolicy={getEffectiveAuthPolicy}
+          registerPasskey={registerPasskey}
           onSwap={handleSwap}
           onBack={() => setView("wallet")}
         />
@@ -724,6 +742,78 @@ function WalletDashboardView({
   );
 }
 
+// ─── Passkey registration nudge (Phase 6.5) ───────────────────────
+
+function PasskeyRegisterNudge({
+  action,
+  onRegister,
+  registering,
+  error,
+}: {
+  action: "send" | "swap";
+  onRegister: () => void;
+  registering: boolean;
+  error: string | null;
+}) {
+  const label = action === "send" ? "send" : "swap";
+  return (
+    <div className="ocw-passkey-nudge" role="status">
+      <p className="ocw-passkey-nudge-title">Passkey required</p>
+      <p className="ocw-passkey-nudge-text">
+        Register a passkey to authorize {label} transactions. Your organization requires passkey
+        verification for treasury {label}s.
+      </p>
+      {error && <p className="ocw-passkey-error">{error}</p>}
+      <button
+        type="button"
+        className="ocw-btn ocw-btn-primary"
+        onClick={onRegister}
+        disabled={registering || !isWebAuthnSupported()}
+      >
+        {registering ? "Registering..." : "Register passkey"}
+      </button>
+      {!isWebAuthnSupported() && (
+        <p className="ocw-passkey-hint">WebAuthn is not supported in this browser.</p>
+      )}
+    </div>
+  );
+}
+
+function useAuthPolicyForAction(
+  getEffectiveAuthPolicy: () => Promise<EffectiveAuthPolicyResponse>,
+  action: "send" | "swap",
+) {
+  const [authPolicy, setAuthPolicy] = useState<EffectiveAuthPolicyResponse | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refreshAuthPolicy = useCallback(async () => {
+    setAuthLoading(true);
+    try {
+      const policy = await getEffectiveAuthPolicy();
+      setAuthPolicy(policy);
+      return policy;
+    } catch {
+      setAuthPolicy(null);
+      return null;
+    } finally {
+      setAuthLoading(false);
+    }
+  }, [getEffectiveAuthPolicy]);
+
+  useEffect(() => {
+    void refreshAuthPolicy();
+  }, [refreshAuthPolicy, refreshKey]);
+
+  return {
+    authPolicy,
+    authLoading,
+    needsPasskeyRegistration: passkeyRegistrationRequired(authPolicy, action),
+    refreshAuthPolicy,
+    bumpRefreshKey: () => setRefreshKey((k) => k + 1),
+  };
+}
+
 // ─── SendView ──────────────────────────────────────────────────────
 
 function SendView({
@@ -731,6 +821,8 @@ function SendView({
   loading,
   isPasswordless,
   client,
+  getEffectiveAuthPolicy,
+  registerPasskey,
   onSend,
   onBack,
 }: {
@@ -738,6 +830,8 @@ function SendView({
   loading: boolean;
   isPasswordless: boolean;
   client: OneclawWalletClient;
+  getEffectiveAuthPolicy: () => Promise<EffectiveAuthPolicyResponse>;
+  registerPasskey: (name?: string) => Promise<void>;
   onSend: (params: { chain: string; to: string; valueWei: string; password?: string; passkeyToken?: string; gasless?: boolean }) => void;
   onBack: () => void;
 }) {
@@ -748,6 +842,32 @@ function SendView({
   const [gasless, setGasless] = useState(false);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+
+  const { authPolicy, authLoading, needsPasskeyRegistration, refreshAuthPolicy } =
+    useAuthPolicyForAction(getEffectiveAuthPolicy, "send");
+
+  const handleRegisterPasskey = async () => {
+    setRegisterLoading(true);
+    setRegisterError(null);
+    try {
+      await registerPasskey("Embedded wallet");
+      const refreshed = await refreshAuthPolicy();
+      if (refreshed && refreshed.registered_passkeys === 0) {
+        setRegisterError("Passkey registered but not yet visible. Try again.");
+      }
+    } catch (err) {
+      setRegisterError(err instanceof Error ? err.message : "Failed to register passkey");
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
+
+  const sendMode = authPolicy?.policy.send;
+  const passkeyAuthRequired =
+    sendMode === "passkey_only" || sendMode === "passkey_required";
+  const usePasskeyFlow = passkeyAuthRequired || isPasswordless;
 
   const handlePasskeySend = async () => {
     if (!client || !to || !amount) return;
@@ -809,13 +929,25 @@ function SendView({
     <div className="ocw-send">
       <button className="ocw-back-btn" onClick={onBack}>&larr; Back</button>
       <h3>Send</h3>
+
+      {authLoading ? (
+        <p className="ocw-passkey-hint">Checking security requirements...</p>
+      ) : needsPasskeyRegistration ? (
+        <PasskeyRegisterNudge
+          action="send"
+          onRegister={handleRegisterPasskey}
+          registering={registerLoading}
+          error={registerError}
+        />
+      ) : (
+        <>
       <select value={chain} onChange={(e) => setChain(e.target.value)} className="ocw-input" aria-label="Chain">
         {wallets.map((w) => <option key={w.chain} value={w.chain}>{w.chain}</option>)}
       </select>
       <input className="ocw-input" placeholder="Recipient address" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Recipient address" />
       <input className="ocw-input" placeholder="Amount (ETH)" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Amount" />
 
-      {!isPasswordless && (
+      {!usePasskeyFlow && (
         <input className="ocw-input" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label="Password" />
       )}
 
@@ -828,7 +960,7 @@ function SendView({
         <p className="ocw-passkey-error">{passkeyError}</p>
       )}
 
-      {isPasswordless ? (
+      {usePasskeyFlow ? (
         <button
           className="ocw-btn ocw-btn-primary"
           disabled={isSubmitting || !to || !amount}
@@ -848,6 +980,8 @@ function SendView({
           {loading ? "Sending..." : "Send"}
         </button>
       )}
+        </>
+      )}
     </div>
   );
 }
@@ -858,12 +992,16 @@ function SwapView({
   wallets,
   loading,
   isPasswordless,
+  getEffectiveAuthPolicy,
+  registerPasskey,
   onSwap,
   onBack,
 }: {
   wallets: WalletInfo[];
   loading: boolean;
   isPasswordless: boolean;
+  getEffectiveAuthPolicy: () => Promise<EffectiveAuthPolicyResponse>;
+  registerPasskey: (name?: string) => Promise<void>;
   onSwap: (params: { chain: string; sellToken: string; buyToken: string; sellAmount: string; password?: string; passkeyToken?: string }) => void;
   onBack: () => void;
 }) {
@@ -872,29 +1010,75 @@ function SwapView({
   const [buyToken, setBuyToken] = useState("USDC");
   const [sellAmount, setSellAmount] = useState("");
   const [password, setPassword] = useState("");
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+
+  const { authPolicy, authLoading, needsPasskeyRegistration, refreshAuthPolicy } =
+    useAuthPolicyForAction(getEffectiveAuthPolicy, "swap");
+
+  const handleRegisterPasskey = async () => {
+    setRegisterLoading(true);
+    setRegisterError(null);
+    try {
+      await registerPasskey("Embedded wallet");
+      const refreshed = await refreshAuthPolicy();
+      if (refreshed && refreshed.registered_passkeys === 0) {
+        setRegisterError("Passkey registered but not yet visible. Try again.");
+      }
+    } catch (err) {
+      setRegisterError(err instanceof Error ? err.message : "Failed to register passkey");
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
+
+  const swapMode = authPolicy?.policy.swap;
+  const passkeyAuthRequired =
+    swapMode === "passkey_only" || swapMode === "passkey_required";
+  const usePasskeyFlow = passkeyAuthRequired || isPasswordless;
 
   return (
     <div className="ocw-swap">
       <button className="ocw-back-btn" onClick={onBack}>&larr; Back</button>
       <h3>Swap</h3>
+
+      {authLoading ? (
+        <p className="ocw-passkey-hint">Checking security requirements...</p>
+      ) : needsPasskeyRegistration ? (
+        <PasskeyRegisterNudge
+          action="swap"
+          onRegister={handleRegisterPasskey}
+          registering={registerLoading}
+          error={registerError}
+        />
+      ) : (
+        <>
       <select value={chain} onChange={(e) => setChain(e.target.value)} className="ocw-input" aria-label="Chain">
         {wallets.map((w) => <option key={w.chain} value={w.chain}>{w.chain}</option>)}
       </select>
       <input className="ocw-input" placeholder="Sell token" value={sellToken} onChange={(e) => setSellToken(e.target.value)} aria-label="Sell token" />
       <input className="ocw-input" placeholder="Buy token" value={buyToken} onChange={(e) => setBuyToken(e.target.value)} aria-label="Buy token" />
       <input className="ocw-input" placeholder="Amount to sell" value={sellAmount} onChange={(e) => setSellAmount(e.target.value)} aria-label="Sell amount" />
-      {!isPasswordless && (
+      {!usePasskeyFlow && (
         <input className="ocw-input" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label="Password" />
       )}
       <button
         className="ocw-btn ocw-btn-primary"
-        disabled={loading || !sellAmount || (!isPasswordless && !password)}
-        onClick={() => onSwap({ chain, sellToken, buyToken, sellAmount, password: isPasswordless ? undefined : password })}
+        disabled={loading || !sellAmount || (!usePasskeyFlow && !password)}
+        onClick={() => onSwap({
+          chain,
+          sellToken,
+          buyToken,
+          sellAmount,
+          password: usePasskeyFlow ? undefined : password,
+        })}
       >
-        {loading ? "Swapping..." : isPasswordless ? "Confirm Swap with Passkey" : "Swap"}
+        {loading ? "Swapping..." : usePasskeyFlow ? "Confirm Swap with Passkey" : "Swap"}
       </button>
-      {isPasswordless && (
+      {usePasskeyFlow && (
         <p className="ocw-passkey-hint">You'll be asked to confirm with your passkey</p>
+      )}
+        </>
       )}
     </div>
   );
