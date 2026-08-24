@@ -36,7 +36,9 @@ function App() {
 
 Full embedded wallet with social login, email OTP login, Send/Swap/Receive/Buy views. Internally wraps itself in `<OneclawWalletProvider>`.
 
-**v0.55 note:** Graduated HITL and extended transaction guardrails (`tx_approval_policy`, org freeze, etc.) are configured on **agents** via the Vault API / dashboard — not on embedded wallet send/swap flows. No API surface changes required for `@1claw/wallet-react` in this release.
+**v0.5.1:** Passkey registration nudge on Send/Swap when HFA requires `passkey_only` or `passkey_required` and the user has no registered passkeys — inline **Register passkey** CTA instead of failing at submit time.
+
+**v0.55 note:** Graduated HITL and extended transaction guardrails (`tx_approval_policy`, org freeze, etc.) are configured on **agents** via the Vault API / dashboard — not on embedded wallet send/swap flows.
 
 | Prop | Type | Required | Description |
 |------|------|----------|-------------|
@@ -172,7 +174,9 @@ export default function WalletPage() {
 
 ## Passkey enrollment (passwordless / HFA)
 
-Social and email-OTP users often have no password. When your platform spend policy sets `passkey_only` for send/swap, users must register a passkey before transacting:
+Social and email-OTP users often have no password. When your platform spend policy sets `passkey_only` for send/swap, users must register a passkey before transacting.
+
+**v0.5.1:** If HFA requires passkey and `registered_passkeys === 0`, Send and Swap views show an inline **Register passkey** button before submit (no silent failure at tx time).
 
 ```tsx
 const { registerPasskey, getEffectiveAuthPolicy, send } = useOneclawWallet();
