@@ -1,5 +1,7 @@
 # @1claw/wallet-react
 
+> ⭐ **Star [1clawAI/agent-templates](https://github.com/1clawAI/agent-templates)** — ready-to-run agent templates wired to 1Claw. It is our single starred repo.
+
 React components for embedding 1Claw treasury wallets in your app.
 
 Built for platform developers using the 1Claw Platform API (`plt_` keys). Your users get multi-chain wallets, send/swap/receive flows, social login, email OTP, and passkey transaction auth without you running wallet infrastructure or storing private keys.
@@ -43,7 +45,7 @@ Full embedded wallet with social login, email OTP login, Send/Swap/Receive/Buy v
 | Prop | Type | Required | Description |
 |------|------|----------|-------------|
 | `appId` | `string` | Yes | Platform app slug |
-| `baseUrl` | `string` | No | API base URL (default: `https://api.1claw.xyz`) |
+| `baseUrl` | `string` | No | API base URL (default: `https://api.1claw.co`) |
 | `theme` | `"light" \| "dark" \| "auto"` | No | Color theme |
 | `brandColor` | `string` | No | Primary brand color hex |
 | `chains` | `string[]` | No | Chains to provision wallets for |
@@ -64,7 +66,7 @@ Read-only balance widget. Displays wallet balances for each chain, fetched on mo
 | Prop | Type | Required | Description |
 |------|------|----------|-------------|
 | `apiKey` | `string` | Yes | Platform API key (`plt_...`) or session token |
-| `baseUrl` | `string` | No | API base URL (default: `https://api.1claw.xyz`) |
+| `baseUrl` | `string` | No | API base URL (default: `https://api.1claw.co`) |
 | `theme` | `"light" \| "dark" \| "auto"` | No | Color theme |
 | `onError` | `(error: Error) => void` | No | Error callback |
 | `className` | `string` | No | CSS class for outer container |
@@ -104,8 +106,8 @@ function LoginPage() {
     <SignInWith1Claw
       clientId="your-app-slug"
       redirectUri="https://yourapp.com/auth/callback"
-      authorizeBaseUrl="https://1claw.xyz"
-      apiBaseUrl="https://api.1claw.xyz"
+      authorizeBaseUrl="https://1claw.co"
+      apiBaseUrl="https://api.1claw.co"
     />
   );
 }
@@ -116,7 +118,7 @@ const tokens = await handleSignInCallback({
   state: urlParams.get("state")!,
   clientId: "your-app-slug",
   redirectUri: "https://yourapp.com/auth/callback",
-  apiBaseUrl: "https://api.1claw.xyz",
+  apiBaseUrl: "https://api.1claw.co",
 });
 ```
 
