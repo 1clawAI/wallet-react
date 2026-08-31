@@ -1,15 +1,26 @@
 import React, { useCallback, useMemo } from "react";
 import { safeRedirect } from "./utils";
 
-const DEFAULT_API_BASE_URL = "https://api.1claw.xyz";
-const DEFAULT_AUTHORIZE_BASE_URL = "https://1claw.xyz";
+const DEFAULT_API_BASE_URL = "https://api.1claw.co";
+const DEFAULT_AUTHORIZE_BASE_URL = "https://1claw.co";
 const STORAGE_KEY = "1claw_pkce_verifier";
 const STATE_KEY = "1claw_oauth_state";
 
 function isDashboardUrl(url: string): boolean {
   try {
     const { hostname } = new URL(url);
-    return hostname === "1claw.xyz" || hostname.endsWith(".1claw.xyz");
+    // Both brands. This decides whether a caller's deprecated `baseUrl` is the
+    // dashboard or the API, so a .co value falling through here was not a
+    // cosmetic miss: it got classified as the API, sending consent to the
+    // default .xyz dashboard and the token exchange to a host that does not
+    // serve the API. Both halves of the flow ended up pointed at the wrong
+    // place, on the domain that is now canonical.
+    return (
+      hostname === "1claw.co" ||
+      hostname.endsWith(".1claw.co") ||
+      hostname === "1claw.xyz" ||
+      hostname.endsWith(".1claw.xyz")
+    );
   } catch {
     return false;
   }
@@ -20,9 +31,9 @@ export interface SignInWith1ClawProps {
   redirectUri: string;
   /** @deprecated Use `apiBaseUrl` and `authorizeBaseUrl` instead. */
   baseUrl?: string;
-  /** Base URL for API token exchange (default: https://api.1claw.xyz) */
+  /** Base URL for API token exchange (default: https://api.1claw.co) */
   apiBaseUrl?: string;
-  /** Base URL for OAuth consent redirect (default: https://1claw.xyz) */
+  /** Base URL for OAuth consent redirect (default: https://1claw.co) */
   authorizeBaseUrl?: string;
   scopes?: string[];
   onSuccess?: (tokenResponse: OAuthTokenResponse) => void;
@@ -217,7 +228,7 @@ export async function handleSignInCallback(params: {
   redirectUri: string;
   /** @deprecated Use `apiBaseUrl` instead. */
   baseUrl?: string;
-  /** Base URL for token exchange API (default: https://api.1claw.xyz) */
+  /** Base URL for token exchange API (default: https://api.1claw.co) */
   apiBaseUrl?: string;
 }): Promise<OAuthTokenResponse> {
   let resolvedApiUrl: string;

@@ -1,8 +1,19 @@
-import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult, SwapParams, SwapResult, SocialLoginResult, EffectiveAuthPolicyResponse } from "./types";
+import type {
+  WalletInfo,
+  WalletBalance,
+  SendTransactionParams,
+  SendTransactionResult,
+  SwapParams,
+  SwapResult,
+  SocialLoginResult,
+  EffectiveAuthPolicyResponse,
+  PasskeyTxAuthResult,
+  FiatOnrampSession,
+} from "./types";
 import { HumanFactorAuthRequiredError } from "./types";
 import { performPasskeyTxAssert, registerPasskey, isWebAuthnSupported } from "./passkeys";
 
-const DEFAULT_BASE_URL = "https://api.1claw.xyz";
+const DEFAULT_BASE_URL = "https://api.1claw.co";
 
 export class OneclawWalletClient {
   private baseUrl: string;

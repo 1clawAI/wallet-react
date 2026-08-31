@@ -153,6 +153,23 @@ export interface SocialLoginResult {
   wallet_address?: string;
 }
 
+/**
+ * Response of `POST /v1/fiat/onramp/session`.
+ *
+ * Shape taken from the vault's own `FiatOnrampSessionResponse`
+ * (vault/src/api/dto/fiat.rs), not inferred. This type was referenced by
+ * `client.createOnrampSession` and re-exported from index.ts while never being
+ * declared anywhere, which is why `npm run build` could not emit declarations
+ * for this package at all.
+ */
+export interface FiatOnrampSession {
+  session_url: string;
+  provider: string;
+  destination_address: string;
+  chain: string;
+  asset: string;
+}
+
 export interface PasskeyTxAuthResult {
   passkey_token: string;
   expires_in: number;

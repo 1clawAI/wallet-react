@@ -29,7 +29,6 @@ export type {
   FiatOnrampSession,
   HumanFactorAuthPolicy,
   EffectiveAuthPolicyResponse,
-  HumanFactorAuthRequiredError,
   WalletErrorCode,
   WalletError,
 } from "./types";
