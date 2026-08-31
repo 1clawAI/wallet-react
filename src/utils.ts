@@ -85,10 +85,11 @@ export function classifyError(
 }
 
 const DEFAULT_REDIRECT_ORIGINS = [
-  "https://1claw.xyz",
-  "https://www.1claw.xyz",
   "https://1claw.co",
   "https://www.1claw.co",
+  // Legacy domain: still accepted so links minted before the move resolve.
+  "https://1claw.xyz",
+  "https://www.1claw.xyz",
 ];
 
 function isAllowedRedirectOrigin(origin: string, extra: string[]): boolean {
