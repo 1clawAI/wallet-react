@@ -6,6 +6,8 @@ React components for embedding 1Claw treasury wallets in your app.
 
 Built for platform developers using the 1Claw Platform API (`plt_` keys). Your users get multi-chain wallets, send/swap/receive flows, social login, email OTP, and passkey transaction auth without you running wallet infrastructure or storing private keys.
 
+**Custody, stated plainly:** the wallets this package renders are `custody: server` — 1Claw holds the KMS-wrapped key and signs after your spend policies, step-up and the sanctions screen. Every wallet object carries `custody`, so read it before making a non-custodial claim to your users. Self-custody models (passkey-owned Safes on EVM, 2-of-2 threshold keys on Solana) exist in the 1Claw dashboard today and are not yet wired into these components; see [Custody](https://docs.1claw.co/docs/security/custody).
+
 ## Installation
 
 ```bash
