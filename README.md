@@ -122,6 +122,33 @@ const tokens = await handleSignInCallback({
 });
 ```
 
+### `<OneclawProposalDetail />`
+
+A wallet-style view of one agent signing request (a "proposal"): the scheme
+(message / typed data / digest / transaction), which agent asked, exactly what
+is being signed, expiry, and Sign / Reject. Pending proposals poll for status;
+approved ones show the "signature created" banner. Tier-2 signatures need a
+re-auth token — return one from `getReauthToken` (`POST /v1/auth/reauth`,
+purpose `approval.decide`).
+
+```tsx
+import { OneclawProposalDetail, useOneclawWallet } from "@1claw/wallet-react";
+
+function Proposals() {
+  const { client } = useOneclawWallet();
+  const [items, setItems] = useState([]);
+  useEffect(() => { client.listProposals("pending").then(setItems); }, [client]);
+  return items.map((p) => (
+    <OneclawProposalDetail key={p.id} proposal={p} onDecided={() => client.listProposals("pending").then(setItems)} />
+  ));
+}
+```
+
+`client.listProposals(status)`, `client.getProposal(id)` and
+`client.decideProposal(id, decision, { reauthToken })` are the underlying
+calls; `describeProposal(p)` gives you the parsed fields if you render your
+own.
+
 ## Hooks
 
 ### `useOneclawWallet()`

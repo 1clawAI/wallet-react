@@ -401,6 +401,31 @@ export function injectThemeStyles(
   font-size: 14px;
   padding: 24px 0;
 }
+.ocw-proposal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 14px;
+}
+.ocw-proposal-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ocw-proposal-scheme { font-weight: 600; }
+.ocw-proposal-status { font-size: 11px; border-radius: 999px; padding: 2px 8px; border: 1px solid var(--ocw-border); color: var(--ocw-text-secondary); }
+.ocw-status-pending { color: #b45309; border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.1); }
+.ocw-status-approved { color: #047857; border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.1); }
+.ocw-status-rejected { color: var(--ocw-error-text); border-color: rgba(220, 38, 38, 0.4); background: var(--ocw-error-bg); }
+.ocw-proposal-agent, .ocw-proposal-summary { color: var(--ocw-text-secondary); margin: 0; }
+.ocw-proposal-label { font-size: 11px; color: var(--ocw-text-tertiary); margin-bottom: 4px; }
+.ocw-proposal-pre { margin: 0; white-space: pre-wrap; word-break: break-all; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.ocw-proposal-body { border: 1px solid var(--ocw-border); border-radius: 8px; padding: 10px; }
+.ocw-proposal-banner { font-size: 12px; color: #047857; background: rgba(16, 185, 129, 0.1); border-radius: 8px; padding: 8px 10px; }
+.ocw-proposal-fields { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 12px; }
+.ocw-proposal-fields dt { color: var(--ocw-text-tertiary); }
+.ocw-proposal-fields dd { margin: 0; word-break: break-all; }
+.ocw-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ocw-link { background: none; border: 0; padding: 0; color: var(--ocw-text-secondary); text-decoration: underline; cursor: pointer; font-size: 12px; align-self: flex-start; }
+.ocw-proposal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ocw-btn-ghost { background: transparent; }
+.ocw-error { color: var(--ocw-error-text); font-size: 12px; margin: 0; }
 
 .ocw-actions {
   display: grid;

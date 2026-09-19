@@ -201,3 +201,42 @@ export class HumanFactorAuthRequiredError extends Error {
     this.name = "HumanFactorAuthRequiredError";
   }
 }
+
+// ── Proposals (agent signing requests) ────────────────────────────────
+
+/** An approval row for an agent signing request (`agent_sign_intent` / `agent_transaction`). */
+export interface Proposal {
+  id: string;
+  org_id: string;
+  agent_id: string | null;
+  action: "agent_sign_intent" | "agent_transaction" | string;
+  target_type: string;
+  target_id: string;
+  risk_tier: number;
+  status: "pending" | "approved" | "rejected";
+  summary: Record<string, unknown>;
+  human_summary?: string | null;
+  reason: string | null;
+  decision_reason: string | null;
+  decided_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export type ProposalScheme = "personal_sign" | "typed_data" | "digest" | "transaction" | "unknown";
+
+/** The proposal, read into the fields a wallet renders. */
+export interface ProposalDetails {
+  scheme: ProposalScheme;
+  schemeLabel: string;
+  agentName: string;
+  chain?: string;
+  /** Recipient (transaction) or verifying contract (typed data). */
+  target?: string;
+  valueWei?: string;
+  /** What is being signed, as text. */
+  body: string;
+  fields: { label: string; value: string; mono?: boolean }[];
+  typedData?: { domain: unknown; primaryType?: string; message: unknown };
+  statusText: "Awaiting your decision" | "Signature created" | "Rejected" | "Expired";
+}

@@ -1,5 +1,8 @@
 export { OneclawTreasuryWidget } from "./OneclawTreasuryWidget";
 export { OneclawEmbeddedWallet } from "./OneclawEmbeddedWallet";
+export { OneclawProposalDetail } from "./OneclawProposalDetail";
+export { describeProposal } from "./proposals";
+export type { OneclawProposalDetailProps } from "./OneclawProposalDetail";
 export { OneclawWalletProvider, useOneclawWallet } from "./context";
 export { OneclawWalletClient, LinkRequiredError } from "./client";
 export { HumanFactorAuthRequiredError } from "./types";
@@ -31,4 +34,7 @@ export type {
   EffectiveAuthPolicyResponse,
   WalletErrorCode,
   WalletError,
+  Proposal,
+  ProposalDetails,
+  ProposalScheme,
 } from "./types";

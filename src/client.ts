@@ -1,4 +1,5 @@
 import type {
+  Proposal,
   WalletInfo,
   WalletBalance,
   SendTransactionParams,
@@ -85,6 +86,27 @@ export class OneclawWalletClient {
   async getBalance(chain: string, tokens?: string[]): Promise<WalletBalance> {
     const params = tokens?.length ? `?tokens=${tokens.join(",")}` : "";
     return this.request<WalletBalance>("GET", `/v1/treasury/wallets/${chain}/balance${params}`);
+  }
+
+  // ── Proposals: signing requests from agents awaiting the human ────────
+
+  async listProposals(status: "pending" | "all" = "pending"): Promise<Proposal[]> {
+    const qs = status === "all" ? "limit=50&offset=0" : "status=pending&limit=50&offset=0";
+    const data = await this.request<{ approvals: Proposal[] }>("GET", `/v1/approvals?${qs}`);
+    return data.approvals.filter((a) => a.action === "agent_sign_intent" || a.action === "agent_transaction");
+  }
+
+  async getProposal(id: string): Promise<Proposal> {
+    return this.request<Proposal>("GET", `/v1/approvals/${id}`);
+  }
+
+  /**
+   * Decide a proposal. A tier-2 signature needs a re-auth token from
+   * `POST /v1/auth/reauth` (purpose `approval.decide`), passed as `reauthToken`.
+   */
+  async decideProposal(id: string, decision: "approved" | "rejected", opts?: { reason?: string; reauthToken?: string }): Promise<Proposal> {
+    const headers = opts?.reauthToken ? { "X-Auth-Confirm": opts.reauthToken } : undefined;
+    return this.request<Proposal>("POST", `/v1/approvals/${id}/decide`, { decision, reason: opts?.reason }, headers);
   }
 
   async getEffectiveAuthPolicy(): Promise<EffectiveAuthPolicyResponse> {
