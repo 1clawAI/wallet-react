@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { OneclawWalletClient } from "./client";
-import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult, SwapParams, SwapResult, SocialLoginResult, EffectiveAuthPolicyResponse } from "./types";
+import type { WalletInfo, WalletBalance, SendTransactionParams, SendTransactionResult, SwapParams, SwapResult, SocialLoginResult, EffectiveAuthPolicyResponse, SpendPolicyResponse, EmbeddedWalletUser } from "./types";
 
 interface WalletContextValue {
   wallets: WalletInfo[];
@@ -13,6 +13,15 @@ interface WalletContextValue {
   send: (params: SendTransactionParams) => Promise<SendTransactionResult>;
   swap: (params: SwapParams) => Promise<SwapResult>;
   getEffectiveAuthPolicy: () => Promise<EffectiveAuthPolicyResponse>;
+  /** Spend limits in force, for showing them before a send. */
+  getEffectiveSpendPolicy: () => Promise<SpendPolicyResponse>;
+  /**
+   * Who is signed in, or null. Populated on login and rehydrated from the
+   * server on mount, so it survives a reload and a change of page.
+   */
+  currentUser: EmbeddedWalletUser | null;
+  /** Re-ask the server. Returns null once the session is no longer valid. */
+  getCurrentUser: () => Promise<EmbeddedWalletUser | null>;
   registerPasskey: (name?: string) => Promise<void>;
   client: OneclawWalletClient;
   loginWithEmailOtp: (email: string, code: string, chains?: string[]) => Promise<SocialLoginResult>;
@@ -55,6 +64,11 @@ export function OneclawWalletProvider({ apiKey, baseUrl, appId, persistSession =
   }, [apiKey, baseUrl, appId, persistSession]);
 
   const [wallets, setWallets] = useState<WalletInfo[]>([]);
+  const [currentUser, setCurrentUser] = useState<EmbeddedWalletUser | null>(null);
+  // Read inside getCurrentUser without making it depend on `wallets`, which
+  // would rebuild the callback on every balance refresh and re-fire the
+  // mount effect that calls it.
+  const walletsRef = useRef<WalletInfo[]>([]);
   const [balances, setBalances] = useState<Record<string, WalletBalance>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -128,10 +142,51 @@ export function OneclawWalletProvider({ apiKey, baseUrl, appId, persistSession =
     [client],
   );
 
+  const getEffectiveSpendPolicy = useCallback(
+    () => client.getEffectiveSpendPolicy(),
+    [client],
+  );
+
+  /**
+   * Identity for the current session.
+   *
+   * Login hands back the user once; nothing re-derived it afterwards, so a
+   * reload left the provider authenticated but anonymous and every
+   * integrator wrote their own cache. Asked of the server rather than
+   * stored, so a revoked session resolves to null instead of to a stale
+   * name.
+   */
+  const getCurrentUser = useCallback(async (): Promise<EmbeddedWalletUser | null> => {
+    const me = await client.getCurrentUser();
+    if (!me) {
+      setCurrentUser(null);
+      return null;
+    }
+    // The wallet address is not part of the identity response; take it from
+    // whichever wallet is already loaded, and leave it undefined rather than
+    // fetching — callers who need it have `wallets`.
+    const user: EmbeddedWalletUser = {
+      userId: me.id,
+      email: me.email,
+      walletAddress: walletsRef.current[0]?.address,
+      isNewUser: false,
+      isPasswordless: false,
+    };
+    setCurrentUser(user);
+    return user;
+  }, [client]);
+
   const loginWithEmailOtp = useCallback(
     async (email: string, code: string, chains?: string[]): Promise<SocialLoginResult> => {
       const result = await client.verifyEmailOtp(email, code, chains);
       if (result.token) persistToken(result.token);
+      setCurrentUser({
+        userId: result.user_id,
+        email: result.email,
+        walletAddress: result.wallet_address,
+        isNewUser: result.is_new_user,
+        isPasswordless: true,
+      });
       return result;
     },
     [client, persistToken]
@@ -141,6 +196,13 @@ export function OneclawWalletProvider({ apiKey, baseUrl, appId, persistSession =
     async (provider: string, idToken: string, chains?: string[], redirectUri?: string): Promise<SocialLoginResult> => {
       const result = await client.socialLogin(provider, idToken, chains, redirectUri);
       if (result.token) persistToken(result.token);
+      setCurrentUser({
+        userId: result.user_id,
+        email: result.email,
+        walletAddress: result.wallet_address,
+        isNewUser: result.is_new_user,
+        isPasswordless: true,
+      });
       return result;
     },
     [client, persistToken]
@@ -151,19 +213,27 @@ export function OneclawWalletProvider({ apiKey, baseUrl, appId, persistSession =
     persistToken(null);
     setWallets([]);
     setBalances({});
+    setCurrentUser(null);
   }, [client, persistToken]);
+
+  useEffect(() => {
+    walletsRef.current = wallets;
+  }, [wallets]);
 
   useEffect(() => {
     if (client.isAuthenticated) {
       refreshWallets();
+      // Rehydrate identity on mount. Without this a reload leaves
+      // currentUser null while the session is perfectly valid.
+      void getCurrentUser();
     } else {
       setLoading(false);
     }
-  }, [refreshWallets, client]);
+  }, [refreshWallets, client, getCurrentUser]);
 
   return (
     <WalletContext.Provider
-      value={{ wallets, balances, loading, error, refreshWallets, refreshBalance, generateWallets, send, swap, getEffectiveAuthPolicy, registerPasskey, client, loginWithEmailOtp, loginWithSocial, logout }}
+      value={{ wallets, balances, loading, error, refreshWallets, refreshBalance, generateWallets, send, swap, getEffectiveAuthPolicy, getEffectiveSpendPolicy, currentUser, getCurrentUser, registerPasskey, client, loginWithEmailOtp, loginWithSocial, logout }}
     >
       {children}
     </WalletContext.Provider>

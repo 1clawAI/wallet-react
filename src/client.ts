@@ -1,4 +1,5 @@
 import type {
+  SpendPolicyResponse,
   Proposal,
   WalletInfo,
   WalletBalance,
@@ -107,6 +108,36 @@ export class OneclawWalletClient {
   async decideProposal(id: string, decision: "approved" | "rejected", opts?: { reason?: string; reauthToken?: string }): Promise<Proposal> {
     const headers = opts?.reauthToken ? { "X-Auth-Confirm": opts.reauthToken } : undefined;
     return this.request<Proposal>("POST", `/v1/approvals/${id}/decide`, { decision, reason: opts?.reason }, headers);
+  }
+
+  /**
+   * Who this session belongs to, from the server.
+   *
+   * `SocialLoginResult` carries the identity, but only once — after a
+   * reload the provider knows it holds a valid token and nothing about
+   * whose it is. Integrators were hand-rolling their own "remember who
+   * logged in" state, which is both duplicated work and a worse answer
+   * than asking: a cached copy cannot notice that a session was revoked.
+   */
+  async getCurrentUser(): Promise<{ id: string; email: string } | null> {
+    if (!this.isAuthenticated) return null;
+    try {
+      return await this.request<{ id: string; email: string }>("GET", "/v1/auth/me");
+    } catch {
+      // A rejected token is not an error here — it is the answer "nobody".
+      return null;
+    }
+  }
+
+  /**
+   * Spend limits in force for this wallet, for pre-flight display.
+   *
+   * Exposed here as well as on the raw SDK client because the widget flow
+   * goes through the hook, and the guide that recommends showing limits
+   * before a send pointed at a method the hook did not have.
+   */
+  async getEffectiveSpendPolicy(): Promise<SpendPolicyResponse> {
+    return this.request<SpendPolicyResponse>("GET", "/v1/treasury/wallets/spend-policy");
   }
 
   async getEffectiveAuthPolicy(): Promise<EffectiveAuthPolicyResponse> {

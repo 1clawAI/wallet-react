@@ -6,10 +6,11 @@ import type {
   WalletBalance,
   SocialProviderConfig,
   EffectiveAuthPolicyResponse,
+  ThemeConfig,
 } from "./types";
 import { OneclawWalletClient, LinkRequiredError } from "./client";
 import { classifyError, safeRedirect } from "./utils";
-import { injectThemeStyles } from "./theme";
+import { injectThemeStyles, buildRootStyle } from "./theme";
 import { OneclawWalletProvider, useOneclawWallet } from "./context";
 import { passkeyRegistrationRequired } from "./passkey-auth";
 import { isWebAuthnSupported } from "./passkeys";
@@ -239,9 +240,18 @@ function EmbeddedWalletInner(props: OneclawEmbeddedWalletProps) {
   const [operationLoading, setOperationLoading] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
+  // `theme` takes either the string union or a ThemeConfig. Normalise once
+  // so the rest of the component only deals with a mode plus an optional
+  // config, and a caller passing the documented object form gets its
+  // cssVars, radius and font applied rather than a type error.
+  const themeConfig: ThemeConfig | undefined =
+    typeof theme === "string" ? undefined : theme;
+  const themeMode: "light" | "dark" | "auto" =
+    typeof theme === "string" ? theme : (theme.mode ?? "auto");
+
   useEffect(() => {
-    injectThemeStyles(theme === "auto" ? "auto" : theme, brandColor);
-  }, [theme, brandColor]);
+    injectThemeStyles(themeMode, themeConfig?.brandColor ?? brandColor);
+  }, [themeMode, themeConfig, brandColor]);
 
   const showToast = useCallback((type: "error" | "success", message: string) => {
     const id = ++toastIdCounter;
@@ -430,14 +440,17 @@ function EmbeddedWalletInner(props: OneclawEmbeddedWalletProps) {
   );
 
   const themeClass =
-    theme === "dark"
+    themeMode === "dark"
       ? "ocw-dark"
-      : theme === "light"
+      : themeMode === "light"
         ? "ocw-light"
         : "ocw-auto";
 
   return (
-    <div className={`ocw-embedded-wallet ${themeClass} ${className || ""}`}>
+    <div
+      className={`ocw-embedded-wallet ${themeClass} ${className || ""}`}
+      style={buildRootStyle(themeMode, themeConfig ?? (brandColor ? { brandColor } : undefined))}
+    >
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {operationLoading && <Spinner />}

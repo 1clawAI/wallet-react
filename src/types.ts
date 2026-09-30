@@ -109,7 +109,17 @@ export interface ThemeConfig {
 export interface OneclawEmbeddedWalletProps {
   appId: string;
   baseUrl?: string;
-  theme?: "light" | "dark" | "auto";
+  /**
+   * `"light" | "dark" | "auto"`, or a `ThemeConfig` for brand colour,
+   * radius, font and raw CSS variables.
+   *
+   * The object form was documented before it was accepted here — the guide
+   * showed `theme={{ "--wallet-bg": ... }}` against a prop that only took
+   * the string union, so anyone following it verbatim hit a type error.
+   * `buildRootStyle` already merged `ThemeConfig.cssVars`; only the prop
+   * was too narrow to reach it.
+   */
+  theme?: "light" | "dark" | "auto" | ThemeConfig;
   brandColor?: string;
   chains?: string[];
   features?: {
@@ -183,6 +193,23 @@ export interface HumanFactorAuthPolicy {
     require_passkey_above_usd?: string | null;
     require_passkey_for_new_recipient?: boolean;
   };
+}
+
+/**
+ * Spend limits in force for the signed-in user's wallets.
+ *
+ * Mirrors `SpendPolicyResponse` in `@1claw/sdk`; duplicated rather than
+ * imported because wallet-react does not depend on the full SDK.
+ */
+export interface SpendPolicyResponse {
+  to_allowlist?: string[];
+  to_denylist?: string[];
+  max_value_per_tx_eth?: string;
+  daily_limit_eth?: string;
+  allowed_chains?: string[];
+  allowed_tokens?: string[];
+  max_transactions_per_day?: number;
+  source: string;
 }
 
 export interface EffectiveAuthPolicyResponse {
