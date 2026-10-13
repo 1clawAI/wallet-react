@@ -168,6 +168,32 @@ function openOAuthPopup(url: string, name: string): Promise<string> {
   });
 }
 
+/**
+ * A nonce for an OIDC authorization request.
+ *
+ * `Math.random().toString(36).slice(2)` was used here, which is wrong twice
+ * over. `Math.random()` is not a CSPRNG -- V8 uses xorshift128+ and its state
+ * is recoverable from a handful of outputs -- and base-36 of one double yields
+ * only about 11 characters of a biased alphabet, far short of the ~128 bits
+ * that makes a nonce unguessable.
+ *
+ * An OIDC `nonce` is what binds the returned `id_token` to the request this
+ * client made: the provider echoes it into the token and the client checks it
+ * matches. A predictable nonce is therefore a token-replay hole -- an attacker
+ * who can guess the next one can present an id_token minted for a request that
+ * was never ours and have it accepted.
+ *
+ * 32 hex characters from `crypto.getRandomValues` is 128 bits. `crypto` is
+ * available in every browser this package supports (it is required for
+ * WebAuthn, which this wallet already uses) and in Node 20+, so there is no
+ * fallback: throwing is better than silently generating a weak nonce.
+ */
+function oauthNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function buildGoogleAuthUrl(clientId: string, redirectUri?: string): string {
   const redirect = redirectUri || window.location.origin + "/auth/callback";
   const params = new URLSearchParams({
@@ -175,7 +201,7 @@ function buildGoogleAuthUrl(clientId: string, redirectUri?: string): string {
     redirect_uri: redirect,
     response_type: "id_token",
     scope: "openid email profile",
-    nonce: Math.random().toString(36).slice(2),
+    nonce: oauthNonce(),
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
