@@ -10,8 +10,9 @@ export interface OneclawProposalDetailProps {
   /** Called after a decision is recorded. */
   onDecided?: (proposal: Proposal, decision: "approved" | "rejected") => void;
   /**
-   * Tier-2 signatures need a re-auth token (`POST /v1/auth/reauth`, purpose
-   * `approval.decide`). Return one, or `undefined` to try without.
+   * Tier-2 signatures need a re-auth token (`POST /v1/auth/reauth/begin`, then
+   * `/v1/auth/reauth/complete`, purpose `approval.decide`). Return one, or
+   * `undefined` to try without.
    */
   getReauthToken?: () => Promise<string | undefined>;
   /** Poll interval for "Refresh status" while pending (ms, 0 = manual only). */

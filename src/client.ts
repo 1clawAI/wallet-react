@@ -17,6 +17,92 @@ import { performPasskeyTxAssert, registerPasskey, isWebAuthnSupported } from "./
 
 const DEFAULT_BASE_URL = "https://api.1claw.co";
 
+// The treasury routes answer in snake_case (vault/src/api/dto/treasury_wallets.rs);
+// the public types here are camelCase. These map one to the other. Without them
+// `publicKeyHex`, `balanceDisplay`, `txHash` and friends were always undefined.
+interface WireWallet {
+  id: string;
+  chain: string;
+  address: string;
+  public_key_hex: string;
+  is_active: boolean;
+  created_at: string;
+  custody?: string;
+}
+interface WireBalance {
+  chain: string;
+  address: string;
+  native: { symbol: string; balance_wei: string; balance_display: string };
+  tokens: { contract_address: string; balance_raw: string }[];
+}
+interface WireSend {
+  tx_hash: string;
+  from: string;
+  to: string;
+  value_wei: string;
+  chain: string;
+  status: string;
+  user_op_hash?: string;
+}
+interface WireSwap {
+  tx_hash: string;
+  sell_token: string;
+  buy_token: string;
+  sell_amount: string;
+  buy_amount: string;
+  chain: string;
+  status: string;
+}
+
+function toWallet(w: WireWallet): WalletInfo {
+  return {
+    id: w.id,
+    chain: w.chain,
+    address: w.address,
+    publicKeyHex: w.public_key_hex,
+    isActive: w.is_active,
+    createdAt: w.created_at,
+    custody: w.custody,
+  };
+}
+
+function toBalance(b: WireBalance): WalletBalance {
+  return {
+    chain: b.chain,
+    address: b.address,
+    native: {
+      symbol: b.native.symbol,
+      balanceWei: b.native.balance_wei,
+      balanceDisplay: b.native.balance_display,
+    },
+    tokens: (b.tokens ?? []).map((t) => ({ contractAddress: t.contract_address, balanceRaw: t.balance_raw })),
+  };
+}
+
+function toSendResult(r: WireSend): SendTransactionResult {
+  return {
+    txHash: r.tx_hash,
+    from: r.from,
+    to: r.to,
+    valueWei: r.value_wei,
+    chain: r.chain,
+    status: r.status,
+    userOpHash: r.user_op_hash,
+  };
+}
+
+function toSwapResult(r: WireSwap): SwapResult {
+  return {
+    txHash: r.tx_hash,
+    sellToken: r.sell_token,
+    buyToken: r.buy_token,
+    sellAmount: r.sell_amount,
+    buyAmount: r.buy_amount,
+    chain: r.chain,
+    status: r.status,
+  };
+}
+
 export class OneclawWalletClient {
   private baseUrl: string;
   private token: string | null = null;
@@ -71,22 +157,22 @@ export class OneclawWalletClient {
   }
 
   async listWallets(): Promise<WalletInfo[]> {
-    const data = await this.request<{ wallets: WalletInfo[] }>("GET", "/v1/treasury/wallets");
-    return data.wallets;
+    const data = await this.request<{ wallets: WireWallet[] }>("GET", "/v1/treasury/wallets");
+    return data.wallets.map(toWallet);
   }
 
   async generateWallets(chains?: string[]): Promise<WalletInfo[]> {
-    const data = await this.request<{ wallets: WalletInfo[] }>(
+    const data = await this.request<{ wallets: WireWallet[] }>(
       "POST",
       "/v1/treasury/wallets/generate",
       { chains }
     );
-    return data.wallets;
+    return data.wallets.map(toWallet);
   }
 
   async getBalance(chain: string, tokens?: string[]): Promise<WalletBalance> {
     const params = tokens?.length ? `?tokens=${tokens.join(",")}` : "";
-    return this.request<WalletBalance>("GET", `/v1/treasury/wallets/${chain}/balance${params}`);
+    return toBalance(await this.request<WireBalance>("GET", `/v1/treasury/wallets/${chain}/balance${params}`));
   }
 
   // ── Proposals: signing requests from agents awaiting the human ────────
@@ -103,7 +189,8 @@ export class OneclawWalletClient {
 
   /**
    * Decide a proposal. A tier-2 signature needs a re-auth token from
-   * `POST /v1/auth/reauth` (purpose `approval.decide`), passed as `reauthToken`.
+   * `POST /v1/auth/reauth/begin` then `POST /v1/auth/reauth/complete`
+   * (purpose `approval.decide`), passed as `reauthToken`.
    */
   async decideProposal(id: string, decision: "approved" | "rejected", opts?: { reason?: string; reauthToken?: string }): Promise<Proposal> {
     const headers = opts?.reauthToken ? { "X-Auth-Confirm": opts.reauthToken } : undefined;
@@ -189,11 +276,13 @@ export class OneclawWalletClient {
 
   async send(params: SendTransactionParams): Promise<SendTransactionResult> {
     const headers = await this.resolveSendAuth(params);
-    return this.request<SendTransactionResult>(
-      "POST",
-      `/v1/treasury/wallets/${params.chain}/send`,
-      { to: params.to, value_wei: params.valueWei, data: params.data, gasless: params.gasless },
-      headers
+    return toSendResult(
+      await this.request<WireSend>(
+        "POST",
+        `/v1/treasury/wallets/${params.chain}/send`,
+        { to: params.to, value_wei: params.valueWei, data: params.data, gasless: params.gasless },
+        headers
+      )
     );
   }
 
@@ -229,11 +318,13 @@ export class OneclawWalletClient {
         throw new HumanFactorAuthRequiredError("Password or passkey required for swap.", ["password", "passkey"]);
       }
     }
-    return this.request<SwapResult>(
-      "POST",
-      `/v1/treasury/wallets/${params.chain}/swap`,
-      { sell_token: params.sellToken, buy_token: params.buyToken, sell_amount: params.sellAmount },
-      headers
+    return toSwapResult(
+      await this.request<WireSwap>(
+        "POST",
+        `/v1/treasury/wallets/${params.chain}/swap`,
+        { sell_token: params.sellToken, buy_token: params.buyToken, sell_amount: params.sellAmount },
+        headers
+      )
     );
   }
 
@@ -305,11 +396,13 @@ export class OneclawWalletClient {
   }
 
   async sendWithPasskey(params: Omit<SendTransactionParams, "password"> & { passkeyToken: string }): Promise<SendTransactionResult> {
-    return this.request<SendTransactionResult>(
-      "POST",
-      `/v1/treasury/wallets/${params.chain}/send`,
-      { to: params.to, value_wei: params.valueWei, data: params.data, gasless: params.gasless },
-      { "X-Passkey-Token": params.passkeyToken }
+    return toSendResult(
+      await this.request<WireSend>(
+        "POST",
+        `/v1/treasury/wallets/${params.chain}/send`,
+        { to: params.to, value_wei: params.valueWei, data: params.data, gasless: params.gasless },
+        { "X-Passkey-Token": params.passkeyToken }
+      )
     );
   }
 

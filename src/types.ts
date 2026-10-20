@@ -31,6 +31,13 @@ export interface WalletInfo {
   publicKeyHex: string;
   isActive: boolean;
   createdAt: string;
+  /**
+   * Who can sign with this wallet: `server` (1claw holds the key),
+   * `client_tss` (2-of-3 threshold, device holds two shares) or
+   * `client_multisig` (Tron 2-of-3 native multisig). `send()` and `swap()`
+   * go through the server signing path, which refuses self-custody wallets.
+   */
+  custody?: string;
 }
 
 export interface NativeBalance {

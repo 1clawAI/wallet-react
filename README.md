@@ -6,7 +6,7 @@ React components for embedding 1Claw treasury wallets in your app.
 
 Built for platform developers using the 1Claw Platform API (`plt_` keys). Your users get multi-chain wallets, send/swap/receive flows, social login, email OTP, and passkey transaction auth without you running wallet infrastructure or storing private keys.
 
-**Custody, stated plainly:** the wallets this package renders are `custody: server` — 1Claw holds the KMS-wrapped key and signs after your spend policies, step-up and the sanctions screen. Every wallet object carries `custody`, so read it before making a non-custodial claim to your users. Self-custody models (passkey-owned Safes on EVM, 2-of-2 threshold keys on Solana) exist in the 1Claw dashboard today and are not yet wired into these components; see [Custody](https://docs.1claw.co/docs/security/custody).
+**Custody, stated plainly:** the wallets this package renders are `custody: server` — 1Claw holds the KMS-wrapped key and signs after your spend policies, step-up and the sanctions screen. Every wallet object carries `custody` (`WalletInfo.custody`), so read it before making a non-custodial claim to your users. Self-custody models (passkey-owned Safes on EVM, 2-of-3 threshold keys with `custody: client_tss`, Tron 2-of-3 multisig with `custody: client_multisig`, and 2-of-3 Safes on EVM) exist in the 1Claw dashboard today and are not yet wired into these components: `send()` and `swap()` use the server signing path, which refuses a self-custody wallet. See [Custody](https://docs.1claw.co/docs/security/custody).
 
 ## Installation
 
@@ -130,8 +130,9 @@ A wallet-style view of one agent signing request (a "proposal"): the scheme
 (message / typed data / digest / transaction), which agent asked, exactly what
 is being signed, expiry, and Sign / Reject. Pending proposals poll for status;
 approved ones show the "signature created" banner. Tier-2 signatures need a
-re-auth token — return one from `getReauthToken` (`POST /v1/auth/reauth`,
-purpose `approval.decide`).
+re-auth token — return one from `getReauthToken` (`POST /v1/auth/reauth/begin`
+then `POST /v1/auth/reauth/complete`, purpose `approval.decide`; the response's
+`reauth_token` is sent as `X-Auth-Confirm`).
 
 ```tsx
 import { OneclawProposalDetail, useOneclawWallet } from "@1claw/wallet-react";
